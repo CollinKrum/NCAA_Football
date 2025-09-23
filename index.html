@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏈 NCAAF Betting Analysis Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <!-- Papa Parse removed - using native CSV parsing instead -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 5px;
+        }
+
+        .tab {
+            background: transparent;
+            border: none;
+            padding: 15px 25px;
+            color: white;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin: 0 5px;
+        }
+
+        .tab:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .tab.active {
+            background: linear-gradient(90deg, #ff6b35, #f7931e);
+            color: white;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .filter-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .filter-item label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        select, input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #ff6b35;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #ff6b35;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 1.1em;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .chart-container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .chart-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+            margin: 20px 0;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2em;
+            padding: 40px;
+        }
+
+        .error {
+            background: #ff4757;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .insight-box {
+            background: linear-gradient(90deg, #00b894, #00cec9);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            border-left: 5px solid #00b894;
+        }
+
+        .data-table {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #ff6b35;
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: rgba(255,107,53,0.1);
+        }
+
+        .analysis-section {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏈 NCAAF Betting Analysis Dashboard</h1>
+        <p>Comprehensive Analysis of 18,000+ College Football Games & Betting Lines</p>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">📊 Overview</button>
+            <button class="tab" data-tab="spreads">📈 Spread Analysis</button>
+            <button class="tab" data-tab="totals">🎯 Over/Under Analysis</button>
+            <button class="tab" data-tab="trends">📅 Historical Trends</button>
+            <button class="tab" data-tab="conferences">🏟️ Conference Analysis</button>
+        </div>
+
+        <!-- Loading Screen -->
+        <div id="loading" class="loading">
+            <h2>🏈 NCAAF Betting Analysis Dashboard</h2>
+            <p>Upload your CSV file to get started</p>
+            <div style="margin: 20px 0;">
+                <input type="file" id="csvFileInput" accept=".csv" style="margin: 10px; padding: 10px; font-size: 16px;">
+                <button onclick="loadUploadedFile()" style="padding: 10px 20px; font-size: 16px; background: #ff6b35; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Data</button>
+            </div>
+            <p style="font-size: 14px; opacity: 0.8;">Select: master_NCAAF_GamesWithOdds_Long.csv</p>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content">
+            <div class="filter-section">
+                <h3>🎛️ Data Filters</h3>
+                <div class="filter-grid">
+                    <div class="filter-item">
+                        <label for="seasonFilter">Season:</label>
+                        <select id="seasonFilter" onchange="updateAnalysis()">
+                            <option value="all">All Seasons</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="providerFilter">Sportsbook:</label>
+                        <select id="providerFilter" onchange="updateAnalysis()">
+                            <option value="all">All Providers</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="conferenceFilter">Conference:</label>
+                        <select id="conferenceFilter" onchange="updateAnalysis()">
+                            <option value="all">All Conferences</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="weekFilter">Week:</label>
+                        <select id="weekFilter" onchange="updateAnalysis()">
+                            <option value="all">All Weeks</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="overview-stats" class="stats-grid"></div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">📈 Games by Season</div>
+                    <div class="chart-wrapper">
+                        <canvas id="seasonChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">🏢 Sportsbook Coverage</div>
+                    <div class="chart-wrapper">
+                        <canvas id="providerChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spread Analysis Tab -->
+        <div id="spreads" class="tab-content">
+            <div class="analysis-section">
+                <h2>📈 Point Spread Analysis</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Point spreads reflect the expected margin of victory. Analyzing spread performance helps identify betting value and market inefficiencies.
+                </div>
+            </div>
+
+            <div id="spread-stats" class="stats-grid"></div>
+
+            <div class="chart-container">
+                <div class="chart-title">📊 Spread Distribution</div>
+                <div class="chart-wrapper">
+                    <canvas id="spreadDistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">🏠 Home vs Away ATS Performance</div>
+                    <div class="chart-wrapper">
+                        <canvas id="homeAwayATSChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📈 Spread Performance by Season</div>
+                    <div class="chart-wrapper">
+                        <canvas id="spreadTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Totals Analysis Tab -->
+        <div id="totals" class="tab-content">
+            <div class="analysis-section">
+                <h2>🎯 Over/Under Analysis</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities in high-scoring or defensive matchups.
+                </div>
+            </div>
+
+            <div id="totals-stats" class="stats-grid"></div>
+
+            <div class="chart-container">
+                <div class="chart-title">📊 Total Points Distribution</div>
+                <div class="chart-wrapper">
+                    <canvas id="totalsDistChart"></canvas>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">⬆️ Over/Under Performance</div>
+                    <div class="chart-wrapper">
+                        <canvas id="overUnderChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📈 Scoring Trends by Season</div>
+                    <div class="chart-wrapper">
+                        <canvas id="scoringTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historical Trends Tab -->
+        <div id="trends" class="tab-content">
+            <div class="analysis-section">
+                <h2>📅 Historical Trends</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Historical trends reveal how college football betting markets have evolved over time.
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">📈 Average Spreads by Season</div>
+                <div class="chart-wrapper">
+                    <canvas id="avgSpreadTrendChart"></canvas>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">🎯 Average Totals Trend</div>
+                    <div class="chart-wrapper">
+                        <canvas id="avgTotalsTrendChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📊 Betting Volume by Provider</div>
+                    <div class="chart-wrapper">
+                        <canvas id="providerVolumeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conference Analysis Tab -->
+        <div id="conferences" class="tab-content">
+            <div class="analysis-section">
+                <h2>🏟️ Conference Analysis</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Different conferences have unique characteristics in terms of scoring, competitiveness, and betting patterns.
+                </div>
+            </div>
+
+            <div id="conference-stats" class="stats-grid"></div>
+
+            <div class="chart-container">
+                <div class="chart-title">🏟️ Games by Conference</div>
+                <div class="chart-wrapper">
+                    <canvas id="conferenceGamesChart"></canvas>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <h3>📊 Conference Performance Table</h3>
+                <div id="conferenceTable"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Native CSV Parser (replaces Papa Parse)
+        function parseCSV(csvText) {
+            const lines = csvText.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const data = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(parseValue(current.trim().replace(/"/g, '')));
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                
+                // Add the last value
+                values.push(parseValue(current.trim().replace(/"/g, '')));
+                
+                // Create row object
+                const row = {};
+                headers.forEach((header, index) => {
+                    row[header] = values[index] || null;
+                });
+                
+                data.push(row);
+            }
+            
+            return data;
+        }
+        
+        function parseValue(value) {
+            if (value === '' || value === 'null' || value === 'NULL') return null;
+            if (value === 'True' || value === 'true') return true;
+            if (value === 'False' || value === 'false') return false;
+            
+            // Try to parse as number
+            const num = Number(value);
+            if (!isNaN(num) && value !== '') return num;
+            
+            return value;
+        }
+
+        // Tab switching functionality - Define first
+        function showTab(tabName) {
+            console.log('Switching to tab:', tabName);
+            
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab content
+            const targetTab = document.getElementById(tabName);
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
+            
+            // Add active class to clicked tab
+            const clickedTab = document.querySelector(`[data-tab="${tabName}"]`);
+            if (clickedTab) {
+                clickedTab.classList.add('active');
+            }
+        }
+
+        // Initialize tab functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click listeners to tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    showTab(tabName);
+                });
+            });
+            
+            // Try to load data automatically first, fall back to file upload
+            loadData();
+        });
+
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let charts = {};
+
+        // Load uploaded file
+        function loadUploadedFile() {
+            const fileInput = document.getElementById('csvFileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a CSV file first');
+                return;
+            }
+            
+            document.getElementById('loading').innerHTML = '<h2>🏈 Processing Data...</h2><p>Loading ' + file.name + '</p>';
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csvText = e.target.result;
+                
+                try {
+                    console.log('Parsing CSV data...');
+                    const parsedData = parseCSV(csvText);
+                    console.log('Parsed', parsedData.length, 'rows');
+                    
+                    allData = parsedData;
+                    filteredData = allData;
+                    initializeFilters();
+                    updateAnalysis();
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('overview').classList.add('active');
+                } catch (error) {
+                    showError('Error processing file: ' + error.message);
+                    console.error('CSV parsing error:', error);
+                }
+            };
+            
+            reader.onerror = function() {
+                showError('Failed to read file');
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // Load and parse CSV data (automatic)
+        async function loadData() {
+            try {
+                const response = await fetch('master_NCAAF_GamesWithOdds_Long.csv');
+                
+                if (!response.ok) {
+                    throw new Error(`File not found (${response.status})`);
+                }
+                
+                const csvText = await response.text();
+                const parsedData = parseCSV(csvText);
+                
+                allData = parsedData;
+                filteredData = allData;
+                initializeFilters();
+                updateAnalysis();
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('overview').classList.add('active');
+            } catch (error) {
+                // If automatic loading fails, show file upload interface
+                console.log('Automatic loading failed, showing file upload option');
+            }
+        }
+
+        // Initialize filter dropdowns
+        function initializeFilters() {
+            // Season filter
+            const seasons = [...new Set(allData.map(row => row.Season))].filter(s => s).sort();
+            const seasonFilter = document.getElementById('seasonFilter');
+            seasons.forEach(season => {
+                const option = document.createElement('option');
+                option.value = season;
+                option.textContent = season;
+                seasonFilter.appendChild(option);
+            });
+
+            // Provider filter
+            const providers = [...new Set(allData.map(row => row.LineProvider))].filter(p => p).sort();
+            const providerFilter = document.getElementById('providerFilter');
+            providers.forEach(provider => {
+                const option = document.createElement('option');
+                option.value = provider;
+                option.textContent = provider;
+                providerFilter.appendChild(option);
+            });
+
+            // Conference filter
+            const conferences = [...new Set(allData.map(row => row.HomeConference))].filter(c => c).sort();
+            const conferenceFilter = document.getElementById('conferenceFilter');
+            conferences.forEach(conference => {
+                const option = document.createElement('option');
+                option.value = conference;
+                option.textContent = conference;
+                conferenceFilter.appendChild(option);
+            });
+
+            // Week filter
+            const weeks = [...new Set(allData.map(row => row.Week))].filter(w => w).sort((a,b) => a-b);
+            const weekFilter = document.getElementById('weekFilter');
+            weeks.forEach(week => {
+                const option = document.createElement('option');
+                option.value = week;
+                option.textContent = `Week ${week}`;
+                weekFilter.appendChild(option);
+            });
+        }
+
+        // Apply filters and update data
+        function updateAnalysis() {
+            applyFilters();
+            updateOverviewStats();
+            updateCharts();
+            updateSpreadAnalysis();
+            updateTotalsAnalysis();
+            updateConferenceAnalysis();
+        }
+
+        // Apply current filter settings
+        function applyFilters() {
+            const seasonFilter = document.getElementById('seasonFilter').value;
+            const providerFilter = document.getElementById('providerFilter').value;
+            const conferenceFilter = document.getElementById('conferenceFilter').value;
+            const weekFilter = document.getElementById('weekFilter').value;
+
+            filteredData = allData.filter(row => {
+                if (seasonFilter !== 'all' && row.Season != seasonFilter) return false;
+                if (providerFilter !== 'all' && row.LineProvider !== providerFilter) return false;
+                if (conferenceFilter !== 'all' && row.HomeConference !== conferenceFilter) return false;
+                if (weekFilter !== 'all' && row.Week != weekFilter) return false;
+                return true;
+            });
+        }
+
+        // Update overview statistics
+        function updateOverviewStats() {
+            const totalGames = filteredData.length;
+            const gamesWithSpreads = filteredData.filter(row => row.Spread != null).length;
+            const gamesWithTotals = filteredData.filter(row => row.OverUnder != null).length;
+            
+            const avgSpread = filteredData
+                .filter(row => row.Spread != null)
+                .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / gamesWithSpreads;
+            
+            const avgTotal = filteredData
+                .filter(row => row.OverUnder != null)
+                .reduce((sum, row) => sum + row.OverUnder, 0) / gamesWithTotals;
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalGames.toLocaleString()}</div>
+                    <div class="stat-label">Total Games</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${((gamesWithSpreads/totalGames)*100).toFixed(1)}%</div>
+                    <div class="stat-label">Spread Coverage</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgSpread ? avgSpread.toFixed(1) : 'N/A'}</div>
+                    <div class="stat-label">Avg Spread</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgTotal ? avgTotal.toFixed(1) : 'N/A'}</div>
+                    <div class="stat-label">Avg Total</div>
+                </div>
+            `;
+            document.getElementById('overview-stats').innerHTML = statsHtml;
+        }
+
+        // Update all charts
+        function updateCharts() {
+            updateSeasonChart();
+            updateProviderChart();
+        }
+
+        // Update season distribution chart
+        function updateSeasonChart() {
+            const seasonCounts = {};
+            filteredData.forEach(row => {
+                if (row.Season) {
+                    seasonCounts[row.Season] = (seasonCounts[row.Season] || 0) + 1;
+                }
+            });
+
+            const ctx = document.getElementById('seasonChart').getContext('2d');
+            if (charts.seasonChart) charts.seasonChart.destroy();
+
+            charts.seasonChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(seasonCounts).sort(),
+                    datasets: [{
+                        label: 'Games',
+                        data: Object.values(seasonCounts),
+                        backgroundColor: 'rgba(255, 107, 53, 0.8)',
+                        borderColor: 'rgba(255, 107, 53, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update provider distribution chart
+        function updateProviderChart() {
+            const providerCounts = {};
+            filteredData.forEach(row => {
+                if (row.LineProvider) {
+                    providerCounts[row.LineProvider] = (providerCounts[row.LineProvider] || 0) + 1;
+                }
+            });
+
+            // Get top 8 providers for better visualization
+            const sortedProviders = Object.entries(providerCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 8);
+
+            const ctx = document.getElementById('providerChart').getContext('2d');
+            if (charts.providerChart) charts.providerChart.destroy();
+
+            charts.providerChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: sortedProviders.map(([name]) => name),
+                    datasets: [{
+                        data: sortedProviders.map(([,count]) => count),
+                        backgroundColor: [
+                            '#ff6b35', '#f7931e', '#2a5298', '#1e3c72',
+                            '#00b894', '#00cec9', '#6c5ce7', '#a29bfe'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update spread analysis
+        function updateSpreadAnalysis() {
+            const spreadData = filteredData.filter(row => row.Spread != null && row.HomeScore != null && row.AwayScore != null);
+            
+            if (spreadData.length === 0) return;
+
+            // Calculate ATS performance
+            let homeATS = 0;
+            let awayATS = 0;
+            let pushes = 0;
+
+            spreadData.forEach(row => {
+                const actualMargin = row.HomeScore - row.AwayScore;
+                const spreadMargin = actualMargin + row.Spread; // Adjust for spread
+                
+                if (Math.abs(spreadMargin) < 0.5) {
+                    pushes++;
+                } else if (spreadMargin > 0) {
+                    homeATS++;
+                } else {
+                    awayATS++;
+                }
+            });
+
+            const totalGames = homeATS + awayATS + pushes;
+            const homeATSPct = totalGames > 0 ? (homeATS / totalGames * 100).toFixed(1) : '0.0';
+            const awayATSPct = totalGames > 0 ? (awayATS / totalGames * 100).toFixed(1) : '0.0';
+
+            const avgSpread = spreadData.reduce((sum, row) => sum + Math.abs(row.Spread), 0) / spreadData.length;
+            const avgMargin = spreadData.reduce((sum, row) => sum + Math.abs(row.HomeScore - row.AwayScore), 0) / spreadData.length;
+
+            const spreadStatsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${homeATSPct}%</div>
+                    <div class="stat-label">Home ATS Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${awayATSPct}%</div>
+                    <div class="stat-label">Away ATS Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgSpread.toFixed(1)}</div>
+                    <div class="stat-label">Average Spread</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgMargin.toFixed(1)}</div>
+                    <div class="stat-label">Average Margin</div>
+                </div>
+            `;
+            
+            const element = document.getElementById('spread-stats');
+            if (element) {
+                element.innerHTML = spreadStatsHtml;
+            }
+        }
+
+        // Update totals analysis
+        function updateTotalsAnalysis() {
+            const totalsData = filteredData.filter(row => 
+                row.OverUnder != null && row.HomeScore != null && row.AwayScore != null
+            );
+            
+            if (totalsData.length === 0) return;
+
+            let overs = 0;
+            let unders = 0;
+            let totalPushes = 0;
+
+            totalsData.forEach(row => {
+                const actualTotal = row.HomeScore + row.AwayScore;
+                const diff = actualTotal - row.OverUnder;
+                
+                if (Math.abs(diff) < 0.5) {
+                    totalPushes++;
+                } else if (diff > 0) {
+                    overs++;
+                } else {
+                    unders++;
+                }
+            });
+
+            const totalGames = overs + unders + totalPushes;
+            const oversPct = totalGames > 0 ? (overs / totalGames * 100).toFixed(1) : '0.0';
+            const undersPct = totalGames > 0 ? (unders / totalGames * 100).toFixed(1) : '0.0';
+
+            const avgTotal = totalsData.reduce((sum, row) => sum + row.OverUnder, 0) / totalsData.length;
+            const avgActualTotal = totalsData.reduce((sum, row) => sum + (row.HomeScore + row.AwayScore), 0) / totalsData.length;
+
+            const totalsStatsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${oversPct}%</div>
+                    <div class="stat-label">Overs Hit Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${undersPct}%</div>
+                    <div class="stat-label">Unders Hit Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgTotal.toFixed(1)}</div>
+                    <div class="stat-label">Average Total Line</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgActualTotal.toFixed(1)}</div>
+                    <div class="stat-label">Average Actual Total</div>
+                </div>
+            `;
+            
+            const element = document.getElementById('totals-stats');
+            if (element) {
+                element.innerHTML = totalsStatsHtml;
+            }
+        }
+
+        // Update conference analysis
+        function updateConferenceAnalysis() {
+            const conferenceCounts = {};
+            const conferenceStats = {};
+
+            filteredData.forEach(row => {
+                if (row.HomeConference) {
+                    conferenceCounts[row.HomeConference] = (conferenceCounts[row.HomeConference] || 0) + 1;
+                    
+                    if (!conferenceStats[row.HomeConference]) {
+                        conferenceStats[row.HomeConference] = {
+                            games: 0,
+                            totalPoints: 0,
+                            spreads: [],
+                            totals: []
+                        };
+                    }
+                    
+                    conferenceStats[row.HomeConference].games++;
+                    
+                    if (row.HomeScore != null && row.AwayScore != null) {
+                        conferenceStats[row.HomeConference].totalPoints += row.HomeScore + row.AwayScore;
+                    }
+                    if (row.Spread != null) {
+                        conferenceStats[row.HomeConference].spreads.push(Math.abs(row.Spread));
+                    }
+                    if (row.OverUnder != null) {
+                        conferenceStats[row.HomeConference].totals.push(row.OverUnder);
+                    }
+                }
+            });
+
+            // Update conference stats
+            const topConferences = Object.entries(conferenceCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 4);
+
+            const conferenceStatsHtml = topConferences.map(([conf, count]) => {
+                return `
+                    <div class="stat-card">
+                        <div class="stat-number">${count}</div>
+                        <div class="stat-label">${conf} Games</div>
+                    </div>
+                `;
+            }).join('');
+
+            const element = document.getElementById('conference-stats');
+            if (element) {
+                element.innerHTML = conferenceStatsHtml;
+            }
+
+            // Update conference games chart
+            updateConferenceGamesChart(conferenceCounts);
+            updateConferenceTable(conferenceStats);
+        }
+
+        // Update conference games chart
+        function updateConferenceGamesChart(conferenceCounts) {
+            const topConferences = Object.entries(conferenceCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 10);
+
+            const ctx = document.getElementById('conferenceGamesChart');
+            if (!ctx) return;
+            
+            const context = ctx.getContext('2d');
+            if (charts.conferenceGamesChart) charts.conferenceGamesChart.destroy();
+
+            charts.conferenceGamesChart = new Chart(context, {
+                type: 'bar',
+                data: {
+                    labels: topConferences.map(([name]) => name),
+                    datasets: [{
+                        label: 'Games',
+                        data: topConferences.map(([,count]) => count),
+                        backgroundColor: 'rgba(255, 107, 53, 0.8)',
+                        borderColor: 'rgba(255, 107, 53, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update conference table
+        function updateConferenceTable(conferenceStats) {
+            const tableData = Object.entries(conferenceStats)
+                .map(([conf, stats]) => {
+                    const avgPoints = stats.totalPoints / stats.games;
+                    const avgSpread = stats.spreads.length > 0 ? 
+                        stats.spreads.reduce((a, b) => a + b, 0) / stats.spreads.length : 0;
+                    const avgTotal = stats.totals.length > 0 ? 
+                        stats.totals.reduce((a, b) => a + b, 0) / stats.totals.length : 0;
+                    
+                    return {
+                        conference: conf,
+                        games: stats.games,
+                        avgPoints: avgPoints.toFixed(1),
+                        avgSpread: avgSpread.toFixed(1),
+                        avgTotal: avgTotal.toFixed(1)
+                    };
+                })
+                .sort((a, b) => b.games - a.games)
+                .slice(0, 15);
+
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Conference</th>
+                            <th>Games</th>
+                            <th>Avg Points</th>
+                            <th>Avg Spread</th>
+                            <th>Avg Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableData.map(row => `
+                            <tr>
+                                <td>${row.conference}</td>
+                                <td>${row.games}</td>
+                                <td>${row.avgPoints}</td>
+                                <td>${row.avgSpread}</td>
+                                <td>${row.avgTotal}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            const element = document.getElementById('conferenceTable');
+            if (element) {
+                element.innerHTML = tableHtml;
+            }
+        }
+
+        // Error handling
+        function showError(message) {
+            const loadingElement = document.getElementById('loading');
+            if (loadingElement) {
+                loadingElement.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error</h2>
+                        <p>${message}</p>
+                        <p>Make sure your CSV file is named exactly: <strong>master_NCAAF_GamesWithOdds_Long.csv</strong></p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
