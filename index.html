@@ -9,7 +9,6 @@
   <meta property="og:description" content="Interactive analysis of NCAAF betting lines and results.">
   <meta property="og:type" content="website">
 
-  <!-- Chart.js 3.x (consistent with your original code) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
   <style>
@@ -78,14 +77,12 @@
       <button class="tab" data-tab="yearly">📅 Year-by-Year Analysis</button>
     </div>
 
-    <!-- Loading -->
     <div id="loading" class="loading">
       <h2>🏈 Loading NCAAF Data...</h2>
       <div class="spinner"></div>
       <p>Processing games and betting lines...</p>
     </div>
 
-    <!-- OVERVIEW -->
     <div id="overview" class="tab-content">
       <div class="filter-section">
         <h3>🎛️ Data Filters</h3>
@@ -105,7 +102,6 @@
       </div>
     </div>
 
-    <!-- SPREADS -->
     <div id="spreads" class="tab-content">
       <div class="analysis-section"><h2>📈 Point Spread Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Point spreads reflect the expected margin of victory. Analyzing spread performance helps identify betting value and market inefficiencies.</div></div>
       <div id="spread-stats" class="stats-grid"></div>
@@ -116,7 +112,6 @@
       </div>
     </div>
 
-    <!-- TOTALS -->
     <div id="totals" class="tab-content">
       <div class="analysis-section"><h2>🎯 Over/Under Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities.</div></div>
       <div id="totals-stats" class="stats-grid"></div>
@@ -127,7 +122,6 @@
       </div>
     </div>
 
-    <!-- TRENDS -->
     <div id="trends" class="tab-content">
       <div class="analysis-section"><h2>📅 Historical Trends</h2><div class="insight-box"><strong>Key Insights:</strong> Historical trends reveal how betting markets evolved over time.</div></div>
       <div class="chart-container"><div class="chart-title">📈 Average Spreads by Season</div><div class="chart-wrapper"><canvas id="avgSpreadTrendChart"></canvas></div></div>
@@ -137,7 +131,6 @@
       </div>
     </div>
 
-    <!-- CONFERENCES -->
     <div id="conferences" class="tab-content">
       <div class="analysis-section"><h2>🏟️ Conference Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Conferences differ in scoring, competitiveness, and betting patterns.</div></div>
       <div id="conference-stats" class="stats-grid"></div>
@@ -145,7 +138,6 @@
       <div class="data-table"><h3>📊 Conference Performance Table</h3><div id="conferenceTable"></div></div>
     </div>
 
-    <!-- TEAMS -->
     <div id="teams" class="tab-content">
       <div class="analysis-section">
         <h2>🏈 Individual Team Analysis</h2>
@@ -167,7 +159,6 @@
       <div class="data-table"><h3>🏈 Recent Games</h3><div id="teamGamesTable"></div></div>
     </div>
 
-    <!-- YEARLY -->
     <div id="yearly" class="tab-content">
       <div class="analysis-section">
         <h2>📅 Year-by-Year Analysis</h2>
