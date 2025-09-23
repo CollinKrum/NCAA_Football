@@ -9,7 +9,7 @@ A comprehensive analysis tool for college football betting data featuring:
 - **Mobile-Responsive** design
 
 ## 🚀 Live Demo
-[View Dashboard](https://YOUR_USERNAME.github.io/ncaaf-betting-dashboard/)
+[View Dashboard](https://collinkrum.github.io/NCAA_Football/)
 
 ## 📊 Features
 - Point spread analysis and ATS performance
