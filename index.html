@@ -4,8 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🏈 NCAAF Betting Analysis Dashboard</title>
+    <meta name="description" content="Comprehensive analysis of 18,000+ college football games and betting lines. Interactive charts, spread analysis, and conference breakdowns.">
+    <meta name="keywords" content="NCAAF, college football, betting analysis, sports analytics, point spreads, over under">
+    
+    <!-- Open Graph for social sharing -->
+    <meta property="og:title" content="NCAAF Betting Analysis Dashboard">
+    <meta property="og:description" content="Interactive analysis of 18,000+ college football betting lines and game results">
+    <meta property="og:type" content="website">
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <!-- Papa Parse removed - using native CSV parsing instead -->
+    
     <style>
         * {
             margin: 0;
@@ -52,6 +60,7 @@
             background: rgba(255,255,255,0.1);
             border-radius: 10px;
             padding: 5px;
+            flex-wrap: wrap;
         }
 
         .tab {
@@ -64,7 +73,7 @@
             font-size: 16px;
             font-weight: 500;
             transition: all 0.3s ease;
-            margin: 0 5px;
+            margin: 5px;
         }
 
         .tab:hover {
@@ -253,6 +262,30 @@
             gap: 30px;
         }
 
+        .footer {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+            border-radius: 15px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid #ff6b35;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @media (max-width: 768px) {
             .two-column {
                 grid-template-columns: 1fr;
@@ -269,6 +302,11 @@
 
             .filter-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .tab {
+                padding: 12px 20px;
+                font-size: 14px;
             }
         }
     </style>
@@ -290,13 +328,9 @@
 
         <!-- Loading Screen -->
         <div id="loading" class="loading">
-            <h2>🏈 NCAAF Betting Analysis Dashboard</h2>
-            <p>Upload your CSV file to get started</p>
-            <div style="margin: 20px 0;">
-                <input type="file" id="csvFileInput" accept=".csv" style="margin: 10px; padding: 10px; font-size: 16px;">
-                <button onclick="loadUploadedFile()" style="padding: 10px 20px; font-size: 16px; background: #ff6b35; color: white; border: none; border-radius: 5px; cursor: pointer;">Load Data</button>
-            </div>
-            <p style="font-size: 14px; opacity: 0.8;">Select: master_NCAAF_GamesWithOdds_Long.csv</p>
+            <h2>🏈 Loading NCAAF Data...</h2>
+            <div class="spinner"></div>
+            <p>Processing games and betting lines...</p>
         </div>
 
         <!-- Overview Tab -->
@@ -375,9 +409,9 @@
                     </div>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">📈 Spread Performance by Season</div>
+                    <div class="chart-title">📈 ATS Performance by Season</div>
                     <div class="chart-wrapper">
-                        <canvas id="spreadTrendChart"></canvas>
+                        <canvas id="atsSeasonChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -441,9 +475,9 @@
                     </div>
                 </div>
                 <div class="chart-container">
-                    <div class="chart-title">📊 Betting Volume by Provider</div>
+                    <div class="chart-title">📊 Market Volume Trends</div>
                     <div class="chart-wrapper">
-                        <canvas id="providerVolumeChart"></canvas>
+                        <canvas id="volumeTrendChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -472,93 +506,35 @@
                 <div id="conferenceTable"></div>
             </div>
         </div>
+
+        <div class="footer">
+            <p>🏈 NCAAF Betting Analysis Dashboard | Data covers 2020-2025 seasons</p>
+            <p>Built with Chart.js | Optimized for mobile and desktop</p>
+        </div>
     </div>
 
     <script>
-        // Native CSV Parser (replaces Papa Parse)
-        function parseCSV(csvText) {
-            const lines = csvText.split('\n');
-            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-            const data = [];
-            
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const values = [];
-                let current = '';
-                let inQuotes = false;
-                
-                for (let j = 0; j < line.length; j++) {
-                    const char = line[j];
-                    
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
-                        values.push(parseValue(current.trim().replace(/"/g, '')));
-                        current = '';
-                    } else {
-                        current += char;
-                    }
-                }
-                
-                // Add the last value
-                values.push(parseValue(current.trim().replace(/"/g, '')));
-                
-                // Create row object
-                const row = {};
-                headers.forEach((header, index) => {
-                    row[header] = values[index] || null;
-                });
-                
-                data.push(row);
-            }
-            
-            return data;
-        }
-        
-        function parseValue(value) {
-            if (value === '' || value === 'null' || value === 'NULL') return null;
-            if (value === 'True' || value === 'true') return true;
-            if (value === 'False' || value === 'false') return false;
-            
-            // Try to parse as number
-            const num = Number(value);
-            if (!isNaN(num) && value !== '') return num;
-            
-            return value;
-        }
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let charts = {};
 
-        // Tab switching functionality - Define first
+        // Tab switching functionality
         function showTab(tabName) {
-            console.log('Switching to tab:', tabName);
-            
-            // Hide all tab contents
             const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(content => {
-                content.classList.remove('active');
-            });
+            tabContents.forEach(content => content.classList.remove('active'));
 
-            // Remove active class from all tabs
             const tabs = document.querySelectorAll('.tab');
-            tabs.forEach(tab => {
-                tab.classList.remove('active');
-            });
+            tabs.forEach(tab => tab.classList.remove('active'));
 
-            // Show selected tab content
             const targetTab = document.getElementById(tabName);
-            if (targetTab) {
-                targetTab.classList.add('active');
-            }
+            if (targetTab) targetTab.classList.add('active');
             
-            // Add active class to clicked tab
             const clickedTab = document.querySelector(`[data-tab="${tabName}"]`);
-            if (clickedTab) {
-                clickedTab.classList.add('active');
-            }
+            if (clickedTab) clickedTab.classList.add('active');
         }
 
-        // Initialize tab functionality
+        // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             // Add click listeners to tabs
             const tabs = document.querySelectorAll('.tab');
@@ -569,81 +545,42 @@
                 });
             });
             
-            // Try to load data automatically first, fall back to file upload
+            // Load data from JSON file
             loadData();
         });
 
-        // Global variables
-        let allData = [];
-        let filteredData = [];
-        let charts = {};
-
-        // Load uploaded file
-        function loadUploadedFile() {
-            const fileInput = document.getElementById('csvFileInput');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                alert('Please select a CSV file first');
-                return;
-            }
-            
-            document.getElementById('loading').innerHTML = '<h2>🏈 Processing Data...</h2><p>Loading ' + file.name + '</p>';
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const csvText = e.target.result;
-                
-                try {
-                    console.log('Parsing CSV data...');
-                    const parsedData = parseCSV(csvText);
-                    console.log('Parsed', parsedData.length, 'rows');
-                    
-                    allData = parsedData;
-                    filteredData = allData;
-                    initializeFilters();
-                    updateAnalysis();
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('overview').classList.add('active');
-                } catch (error) {
-                    showError('Error processing file: ' + error.message);
-                    console.error('CSV parsing error:', error);
-                }
-            };
-            
-            reader.onerror = function() {
-                showError('Failed to read file');
-            };
-            
-            reader.readAsText(file);
-        }
-
-        // Load and parse CSV data (automatic)
+        // Load JSON data
         async function loadData() {
             try {
-                const response = await fetch('master_NCAAF_GamesWithOdds_Long.csv');
+                console.log('🏈 Loading NCAAF data...');
+                const response = await fetch('data/ncaaf-games.json');
                 
                 if (!response.ok) {
-                    throw new Error(`File not found (${response.status})`);
+                    throw new Error(`Data file not found (${response.status}). Make sure to run the data conversion script first.`);
                 }
                 
-                const csvText = await response.text();
-                const parsedData = parseCSV(csvText);
+                const jsonData = await response.json();
+                console.log('✅ Loaded', jsonData.length, 'games');
                 
-                allData = parsedData;
+                allData = jsonData;
                 filteredData = allData;
+                
                 initializeFilters();
                 updateAnalysis();
+                
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('overview').classList.add('active');
+                
             } catch (error) {
-                // If automatic loading fails, show file upload interface
-                console.log('Automatic loading failed, showing file upload option');
+                showError('Failed to load data: ' + error.message + 
+                         '<br><br>Make sure to:<br>1. Convert your CSV to JSON using the conversion script<br>2. Place the JSON file in the data/ folder');
             }
         }
 
         // Initialize filter dropdowns
         function initializeFilters() {
+            console.log('🎛️ Initializing filters...');
+            
             // Season filter
             const seasons = [...new Set(allData.map(row => row.Season))].filter(s => s).sort();
             const seasonFilter = document.getElementById('seasonFilter');
@@ -664,7 +601,7 @@
                 providerFilter.appendChild(option);
             });
 
-            // Conference filter
+            // Conference filter  
             const conferences = [...new Set(allData.map(row => row.HomeConference))].filter(c => c).sort();
             const conferenceFilter = document.getElementById('conferenceFilter');
             conferences.forEach(conference => {
@@ -685,7 +622,7 @@
             });
         }
 
-        // Apply filters and update data
+        // Apply filters and update analysis
         function updateAnalysis() {
             applyFilters();
             updateOverviewStats();
@@ -697,10 +634,10 @@
 
         // Apply current filter settings
         function applyFilters() {
-            const seasonFilter = document.getElementById('seasonFilter').value;
-            const providerFilter = document.getElementById('providerFilter').value;
-            const conferenceFilter = document.getElementById('conferenceFilter').value;
-            const weekFilter = document.getElementById('weekFilter').value;
+            const seasonFilter = document.getElementById('seasonFilter')?.value || 'all';
+            const providerFilter = document.getElementById('providerFilter')?.value || 'all';
+            const conferenceFilter = document.getElementById('conferenceFilter')?.value || 'all';
+            const weekFilter = document.getElementById('weekFilter')?.value || 'all';
 
             filteredData = allData.filter(row => {
                 if (seasonFilter !== 'all' && row.Season != seasonFilter) return false;
@@ -717,13 +654,13 @@
             const gamesWithSpreads = filteredData.filter(row => row.Spread != null).length;
             const gamesWithTotals = filteredData.filter(row => row.OverUnder != null).length;
             
-            const avgSpread = filteredData
-                .filter(row => row.Spread != null)
-                .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / gamesWithSpreads;
+            const avgSpread = gamesWithSpreads > 0 ? 
+                filteredData.filter(row => row.Spread != null)
+                    .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / gamesWithSpreads : 0;
             
-            const avgTotal = filteredData
-                .filter(row => row.OverUnder != null)
-                .reduce((sum, row) => sum + row.OverUnder, 0) / gamesWithTotals;
+            const avgTotal = gamesWithTotals > 0 ?
+                filteredData.filter(row => row.OverUnder != null)
+                    .reduce((sum, row) => sum + row.OverUnder, 0) / gamesWithTotals : 0;
 
             const statsHtml = `
                 <div class="stat-card">
@@ -743,7 +680,8 @@
                     <div class="stat-label">Avg Total</div>
                 </div>
             `;
-            document.getElementById('overview-stats').innerHTML = statsHtml;
+            const element = document.getElementById('overview-stats');
+            if (element) element.innerHTML = statsHtml;
         }
 
         // Update all charts
@@ -761,10 +699,12 @@
                 }
             });
 
-            const ctx = document.getElementById('seasonChart').getContext('2d');
+            const ctx = document.getElementById('seasonChart');
+            if (!ctx) return;
+            
             if (charts.seasonChart) charts.seasonChart.destroy();
 
-            charts.seasonChart = new Chart(ctx, {
+            charts.seasonChart = new Chart(ctx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: Object.keys(seasonCounts).sort(),
@@ -780,14 +720,10 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            display: false
-                        }
+                        legend: { display: false }
                     },
                     scales: {
-                        y: {
-                            beginAtZero: true
-                        }
+                        y: { beginAtZero: true }
                     }
                 }
             });
@@ -802,15 +738,16 @@
                 }
             });
 
-            // Get top 8 providers for better visualization
             const sortedProviders = Object.entries(providerCounts)
                 .sort(([,a], [,b]) => b - a)
                 .slice(0, 8);
 
-            const ctx = document.getElementById('providerChart').getContext('2d');
+            const ctx = document.getElementById('providerChart');
+            if (!ctx) return;
+            
             if (charts.providerChart) charts.providerChart.destroy();
 
-            charts.providerChart = new Chart(ctx, {
+            charts.providerChart = new Chart(ctx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
                     labels: sortedProviders.map(([name]) => name),
@@ -826,9 +763,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
+                        legend: { position: 'bottom' }
                     }
                 }
             });
@@ -836,18 +771,17 @@
 
         // Update spread analysis
         function updateSpreadAnalysis() {
-            const spreadData = filteredData.filter(row => row.Spread != null && row.HomeScore != null && row.AwayScore != null);
+            const spreadData = filteredData.filter(row => 
+                row.Spread != null && row.HomeScore != null && row.AwayScore != null
+            );
             
             if (spreadData.length === 0) return;
 
-            // Calculate ATS performance
-            let homeATS = 0;
-            let awayATS = 0;
-            let pushes = 0;
+            let homeATS = 0, awayATS = 0, pushes = 0;
 
             spreadData.forEach(row => {
                 const actualMargin = row.HomeScore - row.AwayScore;
-                const spreadMargin = actualMargin + row.Spread; // Adjust for spread
+                const spreadMargin = actualMargin + row.Spread;
                 
                 if (Math.abs(spreadMargin) < 0.5) {
                     pushes++;
@@ -861,7 +795,7 @@
             const totalGames = homeATS + awayATS + pushes;
             const homeATSPct = totalGames > 0 ? (homeATS / totalGames * 100).toFixed(1) : '0.0';
             const awayATSPct = totalGames > 0 ? (awayATS / totalGames * 100).toFixed(1) : '0.0';
-
+            
             const avgSpread = spreadData.reduce((sum, row) => sum + Math.abs(row.Spread), 0) / spreadData.length;
             const avgMargin = spreadData.reduce((sum, row) => sum + Math.abs(row.HomeScore - row.AwayScore), 0) / spreadData.length;
 
@@ -885,9 +819,78 @@
             `;
             
             const element = document.getElementById('spread-stats');
-            if (element) {
-                element.innerHTML = spreadStatsHtml;
-            }
+            if (element) element.innerHTML = spreadStatsHtml;
+
+            updateSpreadDistChart(spreadData);
+            updateHomeAwayATSChart(homeATS, awayATS, pushes);
+        }
+
+        // Update spread distribution chart
+        function updateSpreadDistChart(data) {
+            const spreadRanges = {
+                '0-3': 0, '3.5-7': 0, '7.5-10': 0, '10.5-14': 0,
+                '14.5-21': 0, '21.5-28': 0, '28.5+': 0
+            };
+
+            data.forEach(row => {
+                const spread = Math.abs(row.Spread);
+                if (spread <= 3) spreadRanges['0-3']++;
+                else if (spread <= 7) spreadRanges['3.5-7']++;
+                else if (spread <= 10) spreadRanges['7.5-10']++;
+                else if (spread <= 14) spreadRanges['10.5-14']++;
+                else if (spread <= 21) spreadRanges['14.5-21']++;
+                else if (spread <= 28) spreadRanges['21.5-28']++;
+                else spreadRanges['28.5+']++;
+            });
+
+            const ctx = document.getElementById('spreadDistChart');
+            if (!ctx) return;
+            
+            if (charts.spreadDistChart) charts.spreadDistChart.destroy();
+
+            charts.spreadDistChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(spreadRanges),
+                    datasets: [{
+                        label: 'Games',
+                        data: Object.values(spreadRanges),
+                        backgroundColor: 'rgba(42, 82, 152, 0.8)',
+                        borderColor: 'rgba(42, 82, 152, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // Update home vs away ATS chart
+        function updateHomeAwayATSChart(homeATS, awayATS, pushes) {
+            const ctx = document.getElementById('homeAwayATSChart');
+            if (!ctx) return;
+            
+            if (charts.homeAwayATSChart) charts.homeAwayATSChart.destroy();
+
+            charts.homeAwayATSChart = new Chart(ctx.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: ['Home ATS Wins', 'Away ATS Wins', 'Pushes'],
+                    datasets: [{
+                        data: [homeATS, awayATS, pushes],
+                        backgroundColor: ['#00b894', '#ff6b35', '#ddd']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
         }
 
         // Update totals analysis
@@ -898,9 +901,7 @@
             
             if (totalsData.length === 0) return;
 
-            let overs = 0;
-            let unders = 0;
-            let totalPushes = 0;
+            let overs = 0, unders = 0, totalPushes = 0;
 
             totalsData.forEach(row => {
                 const actualTotal = row.HomeScore + row.AwayScore;
@@ -918,7 +919,7 @@
             const totalGames = overs + unders + totalPushes;
             const oversPct = totalGames > 0 ? (overs / totalGames * 100).toFixed(1) : '0.0';
             const undersPct = totalGames > 0 ? (unders / totalGames * 100).toFixed(1) : '0.0';
-
+            
             const avgTotal = totalsData.reduce((sum, row) => sum + row.OverUnder, 0) / totalsData.length;
             const avgActualTotal = totalsData.reduce((sum, row) => sum + (row.HomeScore + row.AwayScore), 0) / totalsData.length;
 
@@ -942,9 +943,76 @@
             `;
             
             const element = document.getElementById('totals-stats');
-            if (element) {
-                element.innerHTML = totalsStatsHtml;
-            }
+            if (element) element.innerHTML = totalsStatsHtml;
+
+            updateTotalsDistChart(totalsData);
+            updateOverUnderChart(overs, unders, totalPushes);
+        }
+
+        // Update totals distribution chart
+        function updateTotalsDistChart(data) {
+            const totalRanges = {
+                '< 35': 0, '35-45': 0, '45-55': 0, '55-65': 0, '65-75': 0, '75+': 0
+            };
+
+            data.forEach(row => {
+                const total = row.OverUnder;
+                if (total < 35) totalRanges['< 35']++;
+                else if (total < 45) totalRanges['35-45']++;
+                else if (total < 55) totalRanges['45-55']++;
+                else if (total < 65) totalRanges['55-65']++;
+                else if (total < 75) totalRanges['65-75']++;
+                else totalRanges['75+']++;
+            });
+
+            const ctx = document.getElementById('totalsDistChart');
+            if (!ctx) return;
+            
+            if (charts.totalsDistChart) charts.totalsDistChart.destroy();
+
+            charts.totalsDistChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(totalRanges),
+                    datasets: [{
+                        label: 'Games',
+                        data: Object.values(totalRanges),
+                        backgroundColor: 'rgba(0, 206, 201, 0.8)',
+                        borderColor: 'rgba(0, 206, 201, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        // Update over/under chart
+        function updateOverUnderChart(overs, unders, pushes) {
+            const ctx = document.getElementById('overUnderChart');
+            if (!ctx) return;
+            
+            if (charts.overUnderChart) charts.overUnderChart.destroy();
+
+            charts.overUnderChart = new Chart(ctx.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: ['Overs', 'Unders', 'Pushes'],
+                    datasets: [{
+                        data: [overs, unders, pushes],
+                        backgroundColor: ['#ff6b35', '#00b894', '#ddd']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
         }
 
         // Update conference analysis
@@ -958,10 +1026,7 @@
                     
                     if (!conferenceStats[row.HomeConference]) {
                         conferenceStats[row.HomeConference] = {
-                            games: 0,
-                            totalPoints: 0,
-                            spreads: [],
-                            totals: []
+                            games: 0, totalPoints: 0, spreads: [], totals: []
                         };
                     }
                     
@@ -979,26 +1044,20 @@
                 }
             });
 
-            // Update conference stats
             const topConferences = Object.entries(conferenceCounts)
                 .sort(([,a], [,b]) => b - a)
                 .slice(0, 4);
 
-            const conferenceStatsHtml = topConferences.map(([conf, count]) => {
-                return `
-                    <div class="stat-card">
-                        <div class="stat-number">${count}</div>
-                        <div class="stat-label">${conf} Games</div>
-                    </div>
-                `;
-            }).join('');
+            const conferenceStatsHtml = topConferences.map(([conf, count]) => `
+                <div class="stat-card">
+                    <div class="stat-number">${count}</div>
+                    <div class="stat-label">${conf} Games</div>
+                </div>
+            `).join('');
 
             const element = document.getElementById('conference-stats');
-            if (element) {
-                element.innerHTML = conferenceStatsHtml;
-            }
+            if (element) element.innerHTML = conferenceStatsHtml;
 
-            // Update conference games chart
             updateConferenceGamesChart(conferenceCounts);
             updateConferenceTable(conferenceStats);
         }
@@ -1012,10 +1071,9 @@
             const ctx = document.getElementById('conferenceGamesChart');
             if (!ctx) return;
             
-            const context = ctx.getContext('2d');
             if (charts.conferenceGamesChart) charts.conferenceGamesChart.destroy();
 
-            charts.conferenceGamesChart = new Chart(context, {
+            charts.conferenceGamesChart = new Chart(ctx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: topConferences.map(([name]) => name),
@@ -1031,16 +1089,8 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     indexAxis: 'y',
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        x: {
-                            beginAtZero: true
-                        }
-                    }
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } }
                 }
             });
         }
@@ -1048,21 +1098,15 @@
         // Update conference table
         function updateConferenceTable(conferenceStats) {
             const tableData = Object.entries(conferenceStats)
-                .map(([conf, stats]) => {
-                    const avgPoints = stats.totalPoints / stats.games;
-                    const avgSpread = stats.spreads.length > 0 ? 
-                        stats.spreads.reduce((a, b) => a + b, 0) / stats.spreads.length : 0;
-                    const avgTotal = stats.totals.length > 0 ? 
-                        stats.totals.reduce((a, b) => a + b, 0) / stats.totals.length : 0;
-                    
-                    return {
-                        conference: conf,
-                        games: stats.games,
-                        avgPoints: avgPoints.toFixed(1),
-                        avgSpread: avgSpread.toFixed(1),
-                        avgTotal: avgTotal.toFixed(1)
-                    };
-                })
+                .map(([conf, stats]) => ({
+                    conference: conf,
+                    games: stats.games,
+                    avgPoints: (stats.totalPoints / stats.games).toFixed(1),
+                    avgSpread: stats.spreads.length > 0 ? 
+                        (stats.spreads.reduce((a, b) => a + b, 0) / stats.spreads.length).toFixed(1) : '0.0',
+                    avgTotal: stats.totals.length > 0 ? 
+                        (stats.totals.reduce((a, b) => a + b, 0) / stats.totals.length).toFixed(1) : '0.0'
+                }))
                 .sort((a, b) => b.games - a.games)
                 .slice(0, 15);
 
@@ -1092,9 +1136,7 @@
             `;
             
             const element = document.getElementById('conferenceTable');
-            if (element) {
-                element.innerHTML = tableHtml;
-            }
+            if (element) element.innerHTML = tableHtml;
         }
 
         // Error handling
@@ -1103,9 +1145,8 @@
             if (loadingElement) {
                 loadingElement.innerHTML = `
                     <div class="error">
-                        <h2>❌ Error</h2>
+                        <h2>❌ Error Loading Data</h2>
                         <p>${message}</p>
-                        <p>Make sure your CSV file is named exactly: <strong>master_NCAAF_GamesWithOdds_Long.csv</strong></p>
                     </div>
                 `;
             }
