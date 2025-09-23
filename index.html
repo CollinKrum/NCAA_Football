@@ -1,5 +1,22 @@
 const element = document.getElementById('conferenceTable');
             if (element) element.innerHTML = tableHtml;
+            // Year analysis dropdowns
+            const yearSelectAnalysis = document.getElementById('yearSelectAnalysis');
+            const compareYearSelect = document.getElementById('compareYearSelect');
+            
+            if (yearSelectAnalysis && compareYearSelect) {
+                seasons.forEach(season => {
+                    const option1 = document.createElement('option');
+                    option1.value = season;
+                    option1.textContent = season;
+                    yearSelectAnalysis.appendChild(option1);
+
+                    const option2 = document.createElement('option');
+                    option2.value = season;
+                    option2.textContent = season;
+                    compareYearSelect.appendChild(option2);
+                });
+            }
         }
 
         // Team Analysis Functions
@@ -477,6 +494,379 @@ const element = document.getElementById('conferenceTable');
             document.getElementById('teamGamesTable').innerHTML = tableHtml;
         }
 
+        // Year-by-Year Analysis Functions
+        function updateYearAnalysis() {
+            const selectedYear = document.getElementById('yearSelectAnalysis')?.value;
+            const compareYear = document.getElementById('compareYearSelect')?.value;
+            
+            if (!selectedYear) {
+                document.getElementById('year-stats').innerHTML = '<p style="text-align: center; color: #666;">Select a season to view detailed analysis</p>';
+                return;
+            }
+
+            const yearData = allData.filter(row => row.Season == selectedYear);
+            const compareData = compareYear ? allData.filter(row => row.Season == compareYear) : null;
+
+            updateYearStats(selectedYear, yearData, compareYear, compareData);
+            updateYearCharts(selectedYear, yearData, compareYear, compareData);
+            updateYearComparisonTable(selectedYear, yearData, compareYear, compareData);
+        }
+
+        function updateYearStats(year, yearData, compareYear, compareData) {
+            const totalGames = yearData.length;
+            const avgSpread = yearData.filter(row => row.Spread != null)
+                .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / yearData.filter(row => row.Spread != null).length || 0;
+            
+            const avgTotal = yearData.filter(row => row.OverUnder != null)
+                .reduce((sum, row) => sum + row.OverUnder, 0) / yearData.filter(row => row.OverUnder != null).length || 0;
+            
+            const avgScore = yearData.filter(row => row.HomeScore != null && row.AwayScore != null)
+                .reduce((sum, row) => sum + row.HomeScore + row.AwayScore, 0) / yearData.filter(row => row.HomeScore != null && row.AwayScore != null).length || 0;
+
+            // ATS Analysis
+            let homeATS = 0, awayATS = 0, atsTotal = 0;
+            yearData.forEach(row => {
+                if (row.Spread != null && row.HomeScore != null && row.AwayScore != null) {
+                    const actualMargin = row.HomeScore - row.AwayScore;
+                    const atsMargin = actualMargin + row.Spread;
+                    if (Math.abs(atsMargin) >= 0.5) {
+                        atsTotal++;
+                        if (atsMargin > 0) homeATS++;
+                        else awayATS++;
+                    }
+                }
+            });
+
+            const homeATSPct = atsTotal > 0 ? (homeATS / atsTotal * 100) : 0;
+
+            // Over/Under Analysis  
+            let overs = 0, totalsTotal = 0;
+            yearData.forEach(row => {
+                if (row.OverUnder != null && row.HomeScore != null && row.AwayScore != null) {
+                    const actualTotal = row.HomeScore + row.AwayScore;
+                    const diff = actualTotal - row.OverUnder;
+                    if (Math.abs(diff) >= 0.5) {
+                        totalsTotal++;
+                        if (diff > 0) overs++;
+                    }
+                }
+            });
+
+            const oversPct = totalsTotal > 0 ? (overs / totalsTotal * 100) : 0;
+
+            let statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalGames.toLocaleString()}</div>
+                    <div class="stat-label">${year} Total Games</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${homeATSPct.toFixed(1)}%</div>
+                    <div class="stat-label">Home ATS Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgSpread.toFixed(1)}</div>
+                    <div class="stat-label">Average Spread</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${oversPct.toFixed(1)}%</div>
+                    <div class="stat-label">Overs Hit Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgTotal.toFixed(1)}</div>
+                    <div class="stat-label">Avg Total Line</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${avgScore.toFixed(1)}</div>
+                    <div class="stat-label">Avg Actual Score</div>
+                </div>
+            `;
+
+            document.getElementById('year-stats').innerHTML = statsHtml;
+        }
+
+        function updateYearCharts(year, yearData, compareYear, compareData) {
+            updateYearMonthlyChart(year, yearData);
+            updateYearConferenceChart(year, yearData);
+            updateYearWeeklyChart(year, yearData);
+            updateYearSpreadAccuracyChart(year, yearData);
+            updateYearScoringDistChart(year, yearData);
+        }
+
+        function updateYearMonthlyChart(year, yearData) {
+            const monthCounts = {};
+            const months = ['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan'];
+            
+            months.forEach(month => monthCounts[month] = 0);
+
+            yearData.forEach(row => {
+                if (row.StartDate) {
+                    const date = new Date(row.StartDate);
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    const monthName = monthNames[date.getMonth()];
+                    if (monthCounts.hasOwnProperty(monthName)) {
+                        monthCounts[monthName]++;
+                    }
+                }
+            });
+
+            const ctx = document.getElementById('yearMonthlyChart');
+            if (!ctx) return;
+            
+            if (charts.yearMonthlyChart) charts.yearMonthlyChart.destroy();
+
+            charts.yearMonthlyChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Games',
+                        data: months.map(month => monthCounts[month]),
+                        backgroundColor: 'rgba(255, 107, 53, 0.8)',
+                        borderColor: 'rgba(255, 107, 53, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function updateYearConferenceChart(year, yearData) {
+            const conferenceCounts = {};
+            
+            yearData.forEach(row => {
+                if (row.HomeConference) {
+                    conferenceCounts[row.HomeConference] = (conferenceCounts[row.HomeConference] || 0) + 1;
+                }
+            });
+
+            const topConferences = Object.entries(conferenceCounts)
+                .sort(([,a], [,b]) => b - a)
+                .slice(0, 8);
+
+            const ctx = document.getElementById('yearConferenceChart');
+            if (!ctx) return;
+            
+            if (charts.yearConferenceChart) charts.yearConferenceChart.destroy();
+
+            charts.yearConferenceChart = new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: topConferences.map(([name]) => name),
+                    datasets: [{
+                        data: topConferences.map(([,count]) => count),
+                        backgroundColor: [
+                            '#ff6b35', '#f7931e', '#2a5298', '#1e3c72',
+                            '#00b894', '#00cec9', '#6c5ce7', '#a29bfe'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } }
+                }
+            });
+        }
+
+        function updateYearWeeklyChart(year, yearData) {
+            const weeklyStats = {};
+            
+            for (let week = 1; week <= 15; week++) {
+                weeklyStats[week] = { games: 0, totalPoints: 0, spreads: [] };
+            }
+
+            yearData.forEach(row => {
+                if (row.Week && row.Week <= 15) {
+                    weeklyStats[row.Week].games++;
+                    if (row.HomeScore != null && row.AwayScore != null) {
+                        weeklyStats[row.Week].totalPoints += row.HomeScore + row.AwayScore;
+                    }
+                    if (row.Spread != null) {
+                        weeklyStats[row.Week].spreads.push(Math.abs(row.Spread));
+                    }
+                }
+            });
+
+            const chartData = Object.entries(weeklyStats)
+                .filter(([week, stats]) => stats.games > 0)
+                .map(([week, stats]) => ({
+                    week: `Week ${week}`,
+                    avgPoints: stats.totalPoints / stats.games,
+                    avgSpread: stats.spreads.length > 0 ? stats.spreads.reduce((a, b) => a + b, 0) / stats.spreads.length : 0,
+                    games: stats.games
+                }));
+
+            const ctx = document.getElementById('yearWeeklyChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.yearWeeklyChart) charts.yearWeeklyChart.destroy();
+
+            charts.yearWeeklyChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.week),
+                    datasets: [
+                        {
+                            label: 'Avg Points',
+                            data: chartData.map(d => d.avgPoints),
+                            borderColor: '#00b894',
+                            backgroundColor: 'rgba(0, 184, 148, 0.1)',
+                            yAxisID: 'y',
+                            borderWidth: 3
+                        },
+                        {
+                            label: 'Avg Spread',
+                            data: chartData.map(d => d.avgSpread),
+                            borderColor: '#ff6b35',
+                            backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                            yAxisID: 'y1',
+                            borderWidth: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Points' } },
+                        y1: { type: 'linear', display: true, position: 'right', title: { display: true, text: 'Spread' }, grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
+        function updateYearSpreadAccuracyChart(year, yearData) {
+            const spreadRanges = { '0-3': {correct: 0, total: 0}, '3.5-7': {correct: 0, total: 0}, '7.5-14': {correct: 0, total: 0}, '14.5+': {correct: 0, total: 0} };
+
+            yearData.forEach(row => {
+                if (row.Spread != null && row.HomeScore != null && row.AwayScore != null) {
+                    const spread = Math.abs(row.Spread);
+                    const actualMargin = Math.abs(row.HomeScore - row.AwayScore);
+                    const spreadWin = (row.HomeScore - row.AwayScore + row.Spread) > 0;
+                    
+                    let range;
+                    if (spread <= 3) range = '0-3';
+                    else if (spread <= 7) range = '3.5-7';
+                    else if (spread <= 14) range = '7.5-14';
+                    else range = '14.5+';
+                    
+                    if (spreadRanges[range]) {
+                        spreadRanges[range].total++;
+                        if (Math.abs(actualMargin - spread) <= 3) {
+                            spreadRanges[range].correct++;
+                        }
+                    }
+                }
+            });
+
+            const accuracyData = Object.entries(spreadRanges).map(([range, data]) => ({
+                range,
+                accuracy: data.total > 0 ? (data.correct / data.total * 100) : 0
+            }));
+
+            const ctx = document.getElementById('yearSpreadAccuracyChart');
+            if (!ctx) return;
+            
+            if (charts.yearSpreadAccuracyChart) charts.yearSpreadAccuracyChart.destroy();
+
+            charts.yearSpreadAccuracyChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: accuracyData.map(d => d.range),
+                    datasets: [{
+                        label: 'Spread Accuracy %',
+                        data: accuracyData.map(d => d.accuracy),
+                        backgroundColor: 'rgba(42, 82, 152, 0.8)',
+                        borderColor: 'rgba(42, 82, 152, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true, max: 100, title: { display: true, text: 'Accuracy %' } },
+                        x: { title: { display: true, text: 'Spread Range' } }
+                    }
+                }
+            });
+        }
+
+        function updateYearScoringDistChart(year, yearData) {
+            const scoreRanges = { '<35': 0, '35-50': 0, '50-65': 0, '65-80': 0, '>80': 0 };
+
+            yearData.forEach(row => {
+                if (row.HomeScore != null && row.AwayScore != null) {
+                    const total = row.HomeScore + row.AwayScore;
+                    if (total < 35) scoreRanges['<35']++;
+                    else if (total < 50) scoreRanges['35-50']++;
+                    else if (total < 65) scoreRanges['50-65']++;
+                    else if (total < 80) scoreRanges['65-80']++;
+                    else scoreRanges['>80']++;
+                }
+            });
+
+            const ctx = document.getElementById('yearScoringDistChart');
+            if (!ctx) return;
+            
+            if (charts.yearScoringDistChart) charts.yearScoringDistChart.destroy();
+
+            charts.yearScoringDistChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(scoreRanges),
+                    datasets: [{
+                        label: 'Games',
+                        data: Object.values(scoreRanges),
+                        backgroundColor: 'rgba(0, 206, 201, 0.8)',
+                        borderColor: 'rgba(0, 206, 201, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true },
+                        x: { title: { display: true, text: 'Total Points' } }
+                    }
+                }
+            });
+        }
+
+        function updateYearComparisonTable(year, yearData, compareYear, compareData) {
+            // Implementation for comparison table would go here
+            // For now, just show basic season stats
+            
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>${year}</th>
+                            ${compareYear ? `<th>${compareYear}</th><th>Difference</th>` : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Total Games</td>
+                            <td>${yearData.length}</td>
+                            ${compareYear ? `<td>${compareData.length}</td><td>${yearData.length - compareData.length > 0 ? '+' : ''}${yearData.length - compareData.length}</td>` : ''}
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('yearComparisonTable').innerHTML = tableHtml;
+        }
+
         // Error handling
         function showError(message) {
             const loadingElement = document.getElementById('loading');
@@ -818,6 +1208,7 @@ const element = document.getElementById('conferenceTable');
             <button class="tab" data-tab="trends">📅 Historical Trends</button>
             <button class="tab" data-tab="conferences">🏟️ Conference Analysis</button>
             <button class="tab" data-tab="teams">🏈 Team Analysis</button>
+            <button class="tab" data-tab="yearly">📅 Year-by-Year Analysis</button>
         </div>
 
         <!-- Loading Screen -->
@@ -1076,6 +1467,76 @@ const element = document.getElementById('conferenceTable');
             </div>
         </div>
 
+        <!-- Year-by-Year Analysis Tab -->
+        <div id="yearly" class="tab-content">
+            <div class="analysis-section">
+                <h2>📅 Year-by-Year Analysis</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Compare betting market performance across different seasons. See how spreads, totals, and market efficiency evolved over time.
+                </div>
+                
+                <div class="filter-grid" style="margin: 20px 0;">
+                    <div class="filter-item">
+                        <label for="yearSelectAnalysis">Select Season for Deep Analysis:</label>
+                        <select id="yearSelectAnalysis" onchange="updateYearAnalysis()">
+                            <option value="">Choose a Season...</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="compareYearSelect">Compare with Season:</label>
+                        <select id="compareYearSelect" onchange="updateYearAnalysis()">
+                            <option value="">No Comparison</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="year-stats" class="stats-grid"></div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">📊 Monthly Game Distribution</div>
+                    <div class="chart-wrapper">
+                        <canvas id="yearMonthlyChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">🏟️ Conference Breakdown</div>
+                    <div class="chart-wrapper">
+                        <canvas id="yearConferenceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">📈 Weekly Performance Trends</div>
+                <div class="chart-wrapper">
+                    <canvas id="yearWeeklyChart"></canvas>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">🎯 Spread Accuracy</div>
+                    <div class="chart-wrapper">
+                        <canvas id="yearSpreadAccuracyChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📊 Scoring Distribution</div>
+                    <div class="chart-wrapper">
+                        <canvas id="yearScoringDistChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <h3>📈 Season Comparison Table</h3>
+                <div id="yearComparisonTable"></div>
+            </div>
+        </div>
+        </div>
+
         <div class="footer">
             <p>🏈 NCAAF Betting Analysis Dashboard | Data covers 2020-2025 seasons</p>
             <p>Built with Chart.js | Optimized for mobile and desktop</p>
@@ -1235,13 +1696,17 @@ const element = document.getElementById('conferenceTable');
 
         // Apply filters and update analysis
         function updateAnalysis() {
-            applyFilters();
-            updateOverviewStats();
-            updateCharts();
-            updateSpreadAnalysis();
-            updateTotalsAnalysis();
-            updateConferenceAnalysis();
-            updateHistoricalTrends(); // Add this line
+            try {
+                applyFilters();
+                updateOverviewStats();
+                updateCharts();
+                updateSpreadAnalysis();
+                updateTotalsAnalysis();
+                updateConferenceAnalysis();
+                updateHistoricalTrends();
+            } catch (error) {
+                console.error('Error in updateAnalysis:', error);
+            }
         }
 
         // Apply current filter settings
