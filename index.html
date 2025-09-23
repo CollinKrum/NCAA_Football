@@ -1,4 +1,497 @@
-<!DOCTYPE html>
+const element = document.getElementById('conferenceTable');
+            if (element) element.innerHTML = tableHtml;
+        }
+
+        // Team Analysis Functions
+        function updateTeamAnalysis() {
+            const selectedTeam = document.getElementById('teamSelectAnalysis').value;
+            if (!selectedTeam) {
+                document.getElementById('team-stats').innerHTML = '<p style="text-align: center; color: #666;">Select a team to view detailed analysis</p>';
+                return;
+            }
+
+            // Filter data for selected team
+            const teamData = allData.filter(row => 
+                row.HomeTeam_x === selectedTeam || row.AwayTeam_x === selectedTeam
+            );
+
+            updateTeamStats(selectedTeam, teamData);
+            updateTeamCharts(selectedTeam, teamData);
+            updateTeamGamesTable(selectedTeam, teamData);
+        }
+
+        function updateTeamStats(teamName, teamData) {
+            // Calculate team statistics
+            let homeGames = 0, awayGames = 0;
+            let homeWins = 0, awayWins = 0;
+            let homeATS = 0, awayATS = 0, homeATSGames = 0, awayATSGames = 0;
+            let overs = 0, unders = 0, totalsPushes = 0, totalsGames = 0;
+            let totalPointsFor = 0, totalPointsAgainst = 0, gamesWithScores = 0;
+
+            teamData.forEach(row => {
+                if (row.HomeScore == null || row.AwayScore == null) return;
+
+                const isHome = row.HomeTeam_x === teamName;
+                const teamScore = isHome ? row.HomeScore : row.AwayScore;
+                const oppScore = isHome ? row.AwayScore : row.HomeScore;
+                
+                totalPointsFor += teamScore;
+                totalPointsAgainst += oppScore;
+                gamesWithScores++;
+
+                if (isHome) {
+                    homeGames++;
+                    if (teamScore > oppScore) homeWins++;
+                } else {
+                    awayGames++;
+                    if (teamScore > oppScore) awayWins++;
+                }
+
+                // ATS Analysis
+                if (row.Spread != null) {
+                    const actualMargin = row.HomeScore - row.AwayScore;
+                    const teamMargin = isHome ? actualMargin : -actualMargin;
+                    const teamSpread = isHome ? -row.Spread : row.Spread;
+                    const atsResult = teamMargin + teamSpread;
+
+                    if (Math.abs(atsResult) >= 0.5) {
+                        if (isHome) {
+                            homeATSGames++;
+                            if (atsResult > 0) homeATS++;
+                        } else {
+                            awayATSGames++;
+                            if (atsResult > 0) awayATS++;
+                        }
+                    }
+                }
+
+                // Over/Under Analysis
+                if (row.OverUnder != null) {
+                    const actualTotal = row.HomeScore + row.AwayScore;
+                    const diff = actualTotal - row.OverUnder;
+                    
+                    totalsGames++;
+                    if (Math.abs(diff) < 0.5) {
+                        totalsPushes++;
+                    } else if (diff > 0) {
+                        overs++;
+                    } else {
+                        unders++;
+                    }
+                }
+            });
+
+            const totalGames = homeGames + awayGames;
+            const totalWins = homeWins + awayWins;
+            const totalATS = homeATS + awayATS;
+            const totalATSGames = homeATSGames + awayATSGames;
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalWins}-${totalGames - totalWins}</div>
+                    <div class="stat-label">Overall Record</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${totalATSGames > 0 ? (totalATS/totalATSGames*100).toFixed(1) : '0.0'}%</div>
+                    <div class="stat-label">ATS Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${gamesWithScores > 0 ? (totalPointsFor/gamesWithScores).toFixed(1) : '0'}</div>
+                    <div class="stat-label">Avg Points For</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${totalsGames > 0 ? (overs/totalsGames*100).toFixed(1) : '0.0'}%</div>
+                    <div class="stat-label">Overs Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${homeGames > 0 ? (homeWins/homeGames*100).toFixed(1) : '0.0'}%</div>
+                    <div class="stat-label">Home Win Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${awayGames > 0 ? (awayWins/awayGames*100).toFixed(1) : '0.0'}%</div>
+                    <div class="stat-label">Away Win Rate</div>
+                </div>
+            `;
+
+            document.getElementById('team-stats').innerHTML = statsHtml;
+        }
+
+        function updateTeamCharts(teamName, teamData) {
+            // Home vs Away Performance Chart
+            updateTeamHomeAwayChart(teamName, teamData);
+            updateTeamATSSeasonChart(teamName, teamData);
+            updateTeamSpreadChart(teamName, teamData);
+            updateTeamTotalsChart(teamName, teamData);
+            updateTeamScoringChart(teamName, teamData);
+        }
+
+        function updateTeamHomeAwayChart(teamName, teamData) {
+            let homeWins = 0, homeLosses = 0, awayWins = 0, awayLosses = 0;
+
+            teamData.forEach(row => {
+                if (row.HomeScore == null || row.AwayScore == null) return;
+                
+                const isHome = row.HomeTeam_x === teamName;
+                const teamScore = isHome ? row.HomeScore : row.AwayScore;
+                const oppScore = isHome ? row.AwayScore : row.HomeScore;
+                
+                if (isHome) {
+                    if (teamScore > oppScore) homeWins++;
+                    else homeLosses++;
+                } else {
+                    if (teamScore > oppScore) awayWins++;
+                    else awayLosses++;
+                }
+            });
+
+            const ctx = document.getElementById('teamHomeAwayChart');
+            if (!ctx) return;
+            
+            if (charts.teamHomeAwayChart) charts.teamHomeAwayChart.destroy();
+
+            charts.teamHomeAwayChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['Home Games', 'Away Games'],
+                    datasets: [
+                        {
+                            label: 'Wins',
+                            data: [homeWins, awayWins],
+                            backgroundColor: '#00b894'
+                        },
+                        {
+                            label: 'Losses',
+                            data: [homeLosses, awayLosses],
+                            backgroundColor: '#ff6b35'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        }
+
+        function updateTeamATSSeasonChart(teamName, teamData) {
+            const seasonStats = {};
+            
+            teamData.forEach(row => {
+                if (!row.Season || row.Spread == null || row.HomeScore == null || row.AwayScore == null) return;
+                
+                if (!seasonStats[row.Season]) {
+                    seasonStats[row.Season] = { ats: 0, games: 0 };
+                }
+
+                const isHome = row.HomeTeam_x === teamName;
+                const actualMargin = row.HomeScore - row.AwayScore;
+                const teamMargin = isHome ? actualMargin : -actualMargin;
+                const teamSpread = isHome ? -row.Spread : row.Spread;
+                const atsResult = teamMargin + teamSpread;
+
+                if (Math.abs(atsResult) >= 0.5) {
+                    seasonStats[row.Season].games++;
+                    if (atsResult > 0) seasonStats[row.Season].ats++;
+                }
+            });
+
+            const chartData = Object.entries(seasonStats)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([season, stats]) => ({
+                    season,
+                    atsPercent: stats.games > 0 ? (stats.ats / stats.games * 100) : 0
+                }));
+
+            const ctx = document.getElementById('teamATSSeasonChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.teamATSSeasonChart) charts.teamATSSeasonChart.destroy();
+
+            charts.teamATSSeasonChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.season),
+                    datasets: [{
+                        label: 'ATS Win %',
+                        data: chartData.map(d => d.atsPercent),
+                        borderColor: '#ff6b35',
+                        backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                        borderWidth: 3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true, 
+                            max: 100,
+                            title: { display: true, text: 'ATS Win %' }
+                        } 
+                    }
+                }
+            });
+        }
+
+        function updateTeamSpreadChart(teamName, teamData) {
+            const spreadRanges = { 'Favored by 14+': 0, 'Favored by 7-13.5': 0, 'Favored by 3-6.5': 0, 'Favored by 0.5-2.5': 0, 'Underdog by 0.5-2.5': 0, 'Underdog by 3-6.5': 0, 'Underdog by 7-13.5': 0, 'Underdog by 14+': 0 };
+
+            teamData.forEach(row => {
+                if (row.Spread == null) return;
+                
+                const isHome = row.HomeTeam_x === teamName;
+                const teamSpread = isHome ? -row.Spread : row.Spread;
+
+                if (teamSpread >= 14) spreadRanges['Favored by 14+']++;
+                else if (teamSpread >= 7) spreadRanges['Favored by 7-13.5']++;
+                else if (teamSpread >= 3) spreadRanges['Favored by 3-6.5']++;
+                else if (teamSpread >= 0.5) spreadRanges['Favored by 0.5-2.5']++;
+                else if (teamSpread >= -2.5) spreadRanges['Underdog by 0.5-2.5']++;
+                else if (teamSpread >= -6.5) spreadRanges['Underdog by 3-6.5']++;
+                else if (teamSpread >= -13.5) spreadRanges['Underdog by 7-13.5']++;
+                else spreadRanges['Underdog by 14+']++;
+            });
+
+            const ctx = document.getElementById('teamSpreadChart');
+            if (!ctx) return;
+            
+            if (charts.teamSpreadChart) charts.teamSpreadChart.destroy();
+
+            charts.teamSpreadChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(spreadRanges),
+                    datasets: [{
+                        label: 'Games',
+                        data: Object.values(spreadRanges),
+                        backgroundColor: 'rgba(42, 82, 152, 0.8)',
+                        borderColor: 'rgba(42, 82, 152, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true },
+                        x: { 
+                            ticks: { 
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTeamTotalsChart(teamName, teamData) {
+            let overs = 0, unders = 0, pushes = 0;
+
+            teamData.forEach(row => {
+                if (row.OverUnder == null || row.HomeScore == null || row.AwayScore == null) return;
+                
+                const actualTotal = row.HomeScore + row.AwayScore;
+                const diff = actualTotal - row.OverUnder;
+                
+                if (Math.abs(diff) < 0.5) pushes++;
+                else if (diff > 0) overs++;
+                else unders++;
+            });
+
+            const ctx = document.getElementById('teamTotalsChart');
+            if (!ctx) return;
+            
+            if (charts.teamTotalsChart) charts.teamTotalsChart.destroy();
+
+            charts.teamTotalsChart = new Chart(ctx.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: ['Overs', 'Unders', 'Pushes'],
+                    datasets: [{
+                        data: [overs, unders, pushes],
+                        backgroundColor: ['#ff6b35', '#00b894', '#ddd']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+        }
+
+        function updateTeamScoringChart(teamName, teamData) {
+            const seasonData = {};
+            
+            teamData.forEach(row => {
+                if (!row.Season || row.HomeScore == null || row.AwayScore == null) return;
+                
+                if (!seasonData[row.Season]) {
+                    seasonData[row.Season] = { pointsFor: 0, pointsAgainst: 0, games: 0 };
+                }
+
+                const isHome = row.HomeTeam_x === teamName;
+                const teamScore = isHome ? row.HomeScore : row.AwayScore;
+                const oppScore = isHome ? row.AwayScore : row.HomeScore;
+                
+                seasonData[row.Season].pointsFor += teamScore;
+                seasonData[row.Season].pointsAgainst += oppScore;
+                seasonData[row.Season].games++;
+            });
+
+            const chartData = Object.entries(seasonData)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([season, stats]) => ({
+                    season,
+                    avgFor: stats.pointsFor / stats.games,
+                    avgAgainst: stats.pointsAgainst / stats.games
+                }));
+
+            charts.teamScoringChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.season),
+                    datasets: [
+                        {
+                            label: 'Points For',
+                            data: chartData.map(d => d.avgFor),
+                            borderColor: '#00b894',
+                            backgroundColor: 'rgba(0, 184, 148, 0.1)',
+                            borderWidth: 3
+                        },
+                        {
+                            label: 'Points Against',
+                            data: chartData.map(d => d.avgAgainst),
+                            borderColor: '#ff6b35',
+                            backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                            borderWidth: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: { 
+                        y: { 
+                            beginAtZero: true,
+                            title: { display: true, text: 'Points Per Game' }
+                        } 
+                    }
+                }
+            });
+        }
+
+        function updateTeamGamesTable(teamName, teamData) {
+            // Sort by most recent first
+            const recentGames = teamData
+                .filter(row => row.StartDate && row.HomeScore != null && row.AwayScore != null)
+                .sort((a, b) => new Date(b.StartDate) - new Date(a.StartDate))
+                .slice(0, 20); // Show last 20 games
+
+            if (recentGames.length === 0) {
+                document.getElementById('teamGamesTable').innerHTML = '<p>No recent games found</p>';
+                return;
+            }
+
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Opponent</th>
+                            <th>H/A</th>
+                            <th>Result</th>
+                            <th>Score</th>
+                            <th>Spread</th>
+                            <th>ATS</th>
+                            <th>Total</th>
+                            <th>O/U</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${recentGames.map(game => {
+                            const isHome = game.HomeTeam_x === teamName;
+                            const opponent = isHome ? game.AwayTeam_x : game.HomeTeam_x;
+                            const teamScore = isHome ? game.HomeScore : game.AwayScore;
+                            const oppScore = isHome ? game.AwayScore : game.HomeScore;
+                            const won = teamScore > oppScore;
+                            const gameDate = new Date(game.StartDate).toLocaleDateString();
+                            
+                            // ATS calculation
+                            let atsResult = 'N/A';
+                            if (game.Spread != null) {
+                                const actualMargin = game.HomeScore - game.AwayScore;
+                                const teamMargin = isHome ? actualMargin : -actualMargin;
+                                const teamSpread = isHome ? -game.Spread : game.Spread;
+                                const atsMargin = teamMargin + teamSpread;
+                                
+                                if (Math.abs(atsMargin) < 0.5) {
+                                    atsResult = 'Push';
+                                } else {
+                                    atsResult = atsMargin > 0 ? '✅' : '❌';
+                                }
+                            }
+                            
+                            // O/U calculation
+                            let ouResult = 'N/A';
+                            if (game.OverUnder != null) {
+                                const actualTotal = game.HomeScore + game.AwayScore;
+                                const diff = actualTotal - game.OverUnder;
+                                
+                                if (Math.abs(diff) < 0.5) {
+                                    ouResult = 'Push';
+                                } else {
+                                    ouResult = diff > 0 ? 'Over' : 'Under';
+                                }
+                            }
+
+                            return `
+                                <tr>
+                                    <td>${gameDate}</td>
+                                    <td>${opponent}</td>
+                                    <td>${isHome ? 'H' : 'A'}</td>
+                                    <td>${won ? '✅ W' : '❌ L'}</td>
+                                    <td>${teamScore}-${oppScore}</td>
+                                    <td>${game.Spread != null ? (isHome ? -game.Spread : game.Spread).toFixed(1) : 'N/A'}</td>
+                                    <td>${atsResult}</td>
+                                    <td>${game.OverUnder != null ? game.OverUnder.toFixed(1) : 'N/A'}</td>
+                                    <td>${ouResult}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            document.getElementById('teamGamesTable').innerHTML = tableHtml;
+        }
+
+        // Error handling
+        function showError(message) {
+            const loadingElement = document.getElementById('loading');
+            if (loadingElement) {
+                loadingElement.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error Loading Data</h2>
+                        <p>${message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -324,6 +817,7 @@
             <button class="tab" data-tab="totals">🎯 Over/Under Analysis</button>
             <button class="tab" data-tab="trends">📅 Historical Trends</button>
             <button class="tab" data-tab="conferences">🏟️ Conference Analysis</button>
+            <button class="tab" data-tab="teams">🏈 Team Analysis</button>
         </div>
 
         <!-- Loading Screen -->
@@ -360,6 +854,18 @@
                         <label for="weekFilter">Week:</label>
                         <select id="weekFilter" onchange="updateAnalysis()">
                             <option value="all">All Weeks</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="teamFilter">Team:</label>
+                        <select id="teamFilter" onchange="updateAnalysis()">
+                            <option value="all">All Teams</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label for="conferenceYearFilter">Conference by Year:</label>
+                        <select id="conferenceYearFilter" onchange="updateAnalysis()">
+                            <option value="all">All Conference-Years</option>
                         </select>
                     </div>
                 </div>
@@ -507,6 +1013,69 @@
             </div>
         </div>
 
+        <!-- Team Analysis Tab -->
+        <div id="teams" class="tab-content">
+            <div class="analysis-section">
+                <h2>🏈 Individual Team Analysis</h2>
+                <div class="insight-box">
+                    <strong>Key Insights:</strong> Analyze specific teams' betting performance, including ATS records, over/under trends, and home vs away performance.
+                </div>
+                
+                <div class="filter-grid" style="margin: 20px 0;">
+                    <div class="filter-item">
+                        <label for="teamSelectAnalysis">Select Team for Deep Analysis:</label>
+                        <select id="teamSelectAnalysis" onchange="updateTeamAnalysis()">
+                            <option value="">Choose a Team...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="team-stats" class="stats-grid"></div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">🏠 Home vs Away Performance</div>
+                    <div class="chart-wrapper">
+                        <canvas id="teamHomeAwayChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📈 Season-by-Season ATS Record</div>
+                    <div class="chart-wrapper">
+                        <canvas id="teamATSSeasonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">⭐ Team Performance vs Spreads</div>
+                <div class="chart-wrapper">
+                    <canvas id="teamSpreadChart"></canvas>
+                </div>
+            </div>
+
+            <div class="two-column">
+                <div class="chart-container">
+                    <div class="chart-title">🎯 Over/Under Performance</div>
+                    <div class="chart-wrapper">
+                        <canvas id="teamTotalsChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">📊 Points Per Game Trends</div>
+                    <div class="chart-wrapper">
+                        <canvas id="teamScoringChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="data-table">
+                <h3>🏈 Recent Games</h3>
+                <div id="teamGamesTable"></div>
+            </div>
+        </div>
+
         <div class="footer">
             <p>🏈 NCAAF Betting Analysis Dashboard | Data covers 2020-2025 seasons</p>
             <p>Built with Chart.js | Optimized for mobile and desktop</p>
@@ -620,6 +1189,48 @@
                 option.textContent = `Week ${week}`;
                 weekFilter.appendChild(option);
             });
+
+            // Team filter
+            const teams = [...new Set([
+                ...allData.map(row => row.HomeTeam_x),
+                ...allData.map(row => row.AwayTeam_x)
+            ])].filter(t => t).sort();
+            
+            const teamFilter = document.getElementById('teamFilter');
+            const teamSelectAnalysis = document.getElementById('teamSelectAnalysis');
+            
+            teams.forEach(team => {
+                // Main filter
+                const option = document.createElement('option');
+                option.value = team;
+                option.textContent = team;
+                teamFilter.appendChild(option);
+
+                // Team analysis filter
+                const option2 = document.createElement('option');
+                option2.value = team;
+                option2.textContent = team;
+                teamSelectAnalysis.appendChild(option2);
+            });
+
+            // Conference-Year filter
+            const conferenceYears = new Set();
+            allData.forEach(row => {
+                if (row.HomeConference && row.Season) {
+                    conferenceYears.add(`${row.HomeConference} ${row.Season}`);
+                }
+                if (row.AwayConference && row.Season) {
+                    conferenceYears.add(`${row.AwayConference} ${row.Season}`);
+                }
+            });
+
+            const conferenceYearFilter = document.getElementById('conferenceYearFilter');
+            [...conferenceYears].sort().forEach(confYear => {
+                const option = document.createElement('option');
+                option.value = confYear;
+                option.textContent = confYear;
+                conferenceYearFilter.appendChild(option);
+            });
         }
 
         // Apply filters and update analysis
@@ -639,12 +1250,26 @@
             const providerFilter = document.getElementById('providerFilter')?.value || 'all';
             const conferenceFilter = document.getElementById('conferenceFilter')?.value || 'all';
             const weekFilter = document.getElementById('weekFilter')?.value || 'all';
+            const teamFilter = document.getElementById('teamFilter')?.value || 'all';
+            const conferenceYearFilter = document.getElementById('conferenceYearFilter')?.value || 'all';
 
             filteredData = allData.filter(row => {
                 if (seasonFilter !== 'all' && row.Season != seasonFilter) return false;
                 if (providerFilter !== 'all' && row.LineProvider !== providerFilter) return false;
-                if (conferenceFilter !== 'all' && row.HomeConference !== conferenceFilter) return false;
+                if (conferenceFilter !== 'all' && row.HomeConference !== conferenceFilter && row.AwayConference !== conferenceFilter) return false;
                 if (weekFilter !== 'all' && row.Week != weekFilter) return false;
+                
+                // Team filter
+                if (teamFilter !== 'all' && row.HomeTeam_x !== teamFilter && row.AwayTeam_x !== teamFilter) return false;
+                
+                // Conference-Year filter
+                if (conferenceYearFilter !== 'all') {
+                    const [confName, confYear] = conferenceYearFilter.split(' ');
+                    const matchesHomeConf = row.HomeConference === confName && row.Season == confYear;
+                    const matchesAwayConf = row.AwayConference === confName && row.Season == confYear;
+                    if (!matchesHomeConf && !matchesAwayConf) return false;
+                }
+                
                 return true;
             });
         }
