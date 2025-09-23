@@ -4,13 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>🏈 NCAAF Betting Analysis Dashboard</title>
-  <meta name="description" content="Comprehensive analysis of 18,000+ college football games and betting lines. Interactive charts, spread analysis, and conference breakdowns.">
-  <meta name="keywords" content="NCAAF, college football, betting analysis, sports analytics, point spreads, over under">
+  <meta name="description" content="Comprehensive analysis of college football games and betting lines. Interactive charts, spread analysis, and conference breakdowns.">
   <meta property="og:title" content="NCAAF Betting Analysis Dashboard">
-  <meta property="og:description" content="Interactive analysis of 18,000+ college football betting lines and game results">
+  <meta property="og:description" content="Interactive analysis of NCAAF betting lines and results.">
   <meta property="og:type" content="website">
 
-  <!-- Chart.js 3.x (matches original code assumptions) -->
+  <!-- Chart.js 3.x (consistent with your original code) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
   <style>
@@ -55,13 +54,17 @@
     .spinner { border:4px solid rgba(255,255,255,.3); border-top:4px solid #ff6b35; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:16px auto }
     @keyframes spin{ to{ transform:rotate(360deg) } }
     .footer { background:rgba(255,255,255,.1); color:#fff; text-align:center; padding:20px; margin-top:30px; border-radius:15px }
+    table { width:100%; border-collapse:collapse }
+    th, td { padding:12px; text-align:left; border-bottom:1px solid #ddd }
+    th { background:#ff6b35; color:#fff; font-weight:600 }
+    tr:hover { background:rgba(255,107,53,.1) }
     @media (max-width: 900px) { .two-column{ grid-template-columns:1fr } .header h1{ font-size:1.8em } }
   </style>
 </head>
 <body>
   <div class="header">
     <h1>🏈 NCAAF Betting Analysis Dashboard</h1>
-    <p>Comprehensive Analysis of 18,000+ College Football Games & Betting Lines</p>
+    <p>Comprehensive Analysis of College Football Games & Betting Lines</p>
   </div>
 
   <div class="container">
@@ -115,7 +118,7 @@
 
     <!-- TOTALS -->
     <div id="totals" class="tab-content">
-      <div class="analysis-section"><h2>🎯 Over/Under Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities in high-scoring or defensive matchups.</div></div>
+      <div class="analysis-section"><h2>🎯 Over/Under Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities.</div></div>
       <div id="totals-stats" class="stats-grid"></div>
       <div class="chart-container"><div class="chart-title">📊 Total Points Distribution</div><div class="chart-wrapper"><canvas id="totalsDistChart"></canvas></div></div>
       <div class="two-column">
@@ -126,7 +129,7 @@
 
     <!-- TRENDS -->
     <div id="trends" class="tab-content">
-      <div class="analysis-section"><h2>📅 Historical Trends</h2><div class="insight-box"><strong>Key Insights:</strong> Historical trends reveal how college football betting markets have evolved over time.</div></div>
+      <div class="analysis-section"><h2>📅 Historical Trends</h2><div class="insight-box"><strong>Key Insights:</strong> Historical trends reveal how betting markets evolved over time.</div></div>
       <div class="chart-container"><div class="chart-title">📈 Average Spreads by Season</div><div class="chart-wrapper"><canvas id="avgSpreadTrendChart"></canvas></div></div>
       <div class="two-column">
         <div class="chart-container"><div class="chart-title">🎯 Average Totals Trend</div><div class="chart-wrapper"><canvas id="avgTotalsTrendChart"></canvas></div></div>
@@ -136,7 +139,7 @@
 
     <!-- CONFERENCES -->
     <div id="conferences" class="tab-content">
-      <div class="analysis-section"><h2>🏟️ Conference Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Different conferences have unique characteristics in terms of scoring, competitiveness, and betting patterns.</div></div>
+      <div class="analysis-section"><h2>🏟️ Conference Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Conferences differ in scoring, competitiveness, and betting patterns.</div></div>
       <div id="conference-stats" class="stats-grid"></div>
       <div class="chart-container"><div class="chart-title">🏟️ Games by Conference</div><div class="chart-wrapper"><canvas id="conferenceGamesChart"></canvas></div></div>
       <div class="data-table"><h3>📊 Conference Performance Table</h3><div id="conferenceTable"></div></div>
@@ -146,7 +149,7 @@
     <div id="teams" class="tab-content">
       <div class="analysis-section">
         <h2>🏈 Individual Team Analysis</h2>
-        <div class="insight-box"><strong>Key Insights:</strong> Analyze specific teams' betting performance, including ATS records, over/under trends, and home vs away performance.</div>
+        <div class="insight-box"><strong>Key Insights:</strong> Deep-dive into ATS, totals, home/away splits, and trends.</div>
         <div class="filter-grid" style="margin: 20px 0;">
           <div class="filter-item"><label for="teamSelectAnalysis">Select Team for Deep Analysis:</label><select id="teamSelectAnalysis" onchange="updateTeamAnalysis()"><option value="">Choose a Team...</option></select></div>
         </div>
@@ -168,7 +171,7 @@
     <div id="yearly" class="tab-content">
       <div class="analysis-section">
         <h2>📅 Year-by-Year Analysis</h2>
-        <div class="insight-box"><strong>Key Insights:</strong> Compare betting market performance across different seasons.</div>
+        <div class="insight-box"><strong>Key Insights:</strong> Compare betting market performance across seasons.</div>
         <div class="filter-grid" style="margin: 20px 0;">
           <div class="filter-item"><label for="yearSelectAnalysis">Select Season for Deep Analysis:</label><select id="yearSelectAnalysis" onchange="updateYearAnalysis()"><option value="">Choose a Season...</option></select></div>
           <div class="filter-item"><label for="compareYearSelect">Compare with Season:</label><select id="compareYearSelect" onchange="updateYearAnalysis()"><option value="">No Comparison</option></select></div>
@@ -242,7 +245,7 @@
       const seasonSel = document.getElementById('seasonFilter');
       seasons.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s; seasonSel.appendChild(o); });
 
-      // ALSO: Year analysis dropdowns (fix from your snippet)
+      // Year analysis dropdowns
       const yearSel = document.getElementById('yearSelectAnalysis');
       const compareSel = document.getElementById('compareYearSelect');
       seasons.forEach(s => {
@@ -432,47 +435,6 @@
       charts.homeAwayATSChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Home ATS Wins','Away ATS Wins','Pushes'], datasets:[{ data:[homeATS,awayATS,pushes], backgroundColor:['#00b894','#ff6b35','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
     }
 
-    // ====== Totals Analysis ======
-    function updateTotalsAnalysis(){
-      const data=filteredData.filter(r=>r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null);
-      if(!data.length){ document.getElementById('totals-stats').innerHTML='<p style="text-align:center">No totals data for current filters</p>'; return; }
-
-      let overs=0, unders=0, pushes=0;
-      data.forEach(r=>{
-        const total=(r.HomeScore||0)+(r.AwayScore||0);
-        const diff= total - (r.OverUnder||0);
-        if (Math.abs(diff) < 0.5) pushes++; else if (diff > 0) overs++; else unders++;
-      });
-      const totalGames = overs+unders+pushes;
-      const oversPct = totalGames ? (overs/totalGames*100).toFixed(1) : '0.0';
-      const undersPct = totalGames ? (unders/totalGames*100).toFixed(1) : '0.0';
-      const avgTotal = data.reduce((s,r)=>s+(r.OverUnder||0),0)/data.length;
-      const avgActual = data.reduce((s,r)=>s+((r.HomeScore||0)+(r.AwayScore||0)),0)/data.length;
-
-      document.getElementById('totals-stats').innerHTML = `
-        <div class="stat-card"><div class="stat-number">${oversPct}%</div><div class="stat-label">Overs Hit Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${undersPct}%</div><div class="stat-label">Unders Hit Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${avgTotal.toFixed(1)}</div><div class="stat-label">Average Total Line</div></div>
-        <div class="stat-card"><div class="stat-number">${avgActual.toFixed(1)}</div><div class="stat-label">Average Actual Total</div></div>`;
-
-      updateTotalsDistChart(data);
-      updateOverUnderChart(overs, unders, pushes);
-    }
-
-    function updateTotalsDistChart(data){
-      const ranges={'< 35':0,'35-45':0,'45-55':0,'55-65':0,'65-75':0,'75+':0};
-      data.forEach(r=>{
-        const t=r.OverUnder;
-        if (t<35) ranges['< 35']++; else if (t<45) ranges['35-45']++; else if (t<55) ranges['45-55']++; else if (t<65) ranges['55-65']++; else if (t<75) ranges['65-75']++; else ranges['75+']++;
-      });
-      const ctx=document.getElementById('totalsDistChart'); if(!ctx) return; destroy('totalsDistChart');
-      charts.totalsDistChart=new Chart(ctx.getContext('2d'),{ type:'bar', data:{ labels:Object.keys(ranges), datasets:[{ label:'Games', data:Object.values(ranges), backgroundColor:'rgba(0,206,201,.8)', borderColor:'rgba(0,206,201,1)', borderWidth:2 }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } } });
-    }
-    function updateOverUnderChart(overs,unders,pushes){
-      const ctx=document.getElementById('overUnderChart'); if(!ctx) return; destroy('overUnderChart');
-      charts.overUnderChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[overs,unders,pushes], backgroundColor:['#ff6b35','#00b894','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
-    }
-
     // ====== Conference Analysis ======
     function updateConferenceAnalysis(){
       const counts={}; const stats={};
@@ -620,7 +582,7 @@
       charts.teamTotalsChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[overs,unders,pushes], backgroundColor:['#ff6b35','#00b894','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
     }
 
-    // IMPORTANT FIX: define ctx before making chart
+    // IMPORTANT FIX: define ctx element before using getContext
     function updateTeamScoringChart(team, data){
       const ctxEl = document.getElementById('teamScoringChart');
       if (!ctxEl) return;
