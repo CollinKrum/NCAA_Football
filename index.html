@@ -4,448 +4,241 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>NCAAF Betting Analysis Dashboard</title>
-
-  <!-- Chart.js & PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
   <style>
-    :root {
-      --bg: #153a66;
-      --bg-2: #0f2c4d;
-      --accent: #f37024;
-      --muted: #e6edf5;
-      --text: #f6fbff;
-      --text-dim: #cfe2ff;
-      --ok: #23c55e;
-      --warn: #fbbf24;
-      --bad: #ef4444;
-    }
-    * { box-sizing: border-box }
-    html, body { height: 100% }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      color: var(--text);
-      background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
-      min-height: 100%;
-    }
-    header {
-      position: sticky; top: 0; z-index: 10;
-      background: linear-gradient(180deg, rgba(15,44,77,.95), rgba(21,58,102,.95));
-      border-bottom: 2px solid rgba(243,112,36,.35);
-      backdrop-filter: blur(6px);
-    }
-    .container { max-width: 1200px; margin: 0 auto; padding: 16px }
-    .row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px }
-    .card {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 14px;
-      padding: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
-    }
-    h1 { margin: 0; font-size: 22px; letter-spacing: .5px }
-    .subtle { color: var(--text-dim); font-size: 13px }
-    .badge {
-      background: var(--accent); color: #041625; padding: 6px 10px;
-      border-radius: 999px; font-weight: 700; letter-spacing: .3px; font-size: 12px;
-    }
-    .kpi {
-      display: flex; align-items: baseline; gap: 8px;
-    }
-    .kpi .value { font-size: 24px; font-weight: 800 }
-    .kpi .label { font-size: 12px; color: var(--text-dim) }
-    .chip { background: rgba(243,112,36,.15); color: var(--text); padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(243,112,36,.35); }
-    .controls { display:flex; flex-wrap: wrap; gap: 8px }
-    select, input[type="file"] {
-      background: rgba(255,255,255,.06); color: var(--text); border: 1px solid rgba(255,255,255,.15);
-      padding: 8px 10px; border-radius: 8px; outline: none;
-    }
-    .btn {
-      background: var(--accent); color: #041625; border: none; padding: 8px 12px; border-radius: 10px; font-weight: 700;
-      cursor: pointer;
-    }
-    .btn:disabled { opacity: .6; cursor: not-allowed }
-    .grid-3 { grid-column: span 4 }
-    .grid-4 { grid-column: span 4 }
-    .grid-6 { grid-column: span 6 }
-    .grid-12 { grid-column: span 12 }
-    canvas { width: 100% !important; height: 320px !important }
-    .footer { margin-top: 30px; text-align: center; color: var(--text-dim); font-size: 12px }
-    .error { color: #ffd5d5; background: rgba(239,68,68,.15); border: 1px solid rgba(239,68,68,.35); padding: 10px 12px; border-radius: 10px }
-    @media (max-width: 1000px) {
-      .grid-3, .grid-4, .grid-6 { grid-column: span 12 }
-      canvas { height: 260px !important }
-    }
+    body{margin:0;background:#0f2c4d;color:#f6fbff;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+    .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px}
+    h1{font-size:22px;margin:0 0 8px}
+    .kpi{display:flex;gap:6px;align-items:baseline}
+    .kpi .num{font-weight:800;font-size:24px}
+    .muted{color:#cfe2ff;font-size:12px}
+    .g3{grid-column:span 3}.g6{grid-column:span 6}.g12{grid-column:span 12}
+    canvas{width:100%!important;height:320px!important}
+    @media(max-width:1000px){.g3,.g6{grid-column:span 12}canvas{height:260px!important}}
+    .err{display:none;margin-top:10px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.4);padding:10px;border-radius:10px;color:#ffd5d5}
   </style>
 </head>
 <body>
-  <header>
-    <div class="container" style="display:flex; align-items:center; justify-content:space-between; gap: 12px">
-      <div style="display:flex; align-items:center; gap: 10px">
-        <span class="badge">NCAAF</span>
-        <div>
-          <h1>Betting Analysis Dashboard</h1>
-          <div class="subtle">Load your <b>master_NCAAF_Data.csv</b> or let the page try to fetch it from this folder.</div>
-        </div>
-      </div>
-      <div class="controls">
-        <input id="fileInput" type="file" accept=".csv" />
-        <select id="seasonSelect"></select>
-        <select id="bookSelect"></select>
-        <button class="btn" id="resetBtn">Reset</button>
-      </div>
-    </div>
-  </header>
+  <div class="wrap">
+    <h1>NCAAF Betting Analysis Dashboard</h1>
+    <div class="muted" id="sourceInfo"></div>
 
-  <main class="container" id="app">
-    <section class="row" id="kpis">
-      <div class="card grid-3">
-        <div class="kpi"><span class="value" id="kpiTotalGames">0</span><span class="label">Total Games</span></div>
-        <div class="subtle" id="kpiHomeAway"></div>
-      </div>
-      <div class="card grid-3">
-        <div class="kpi"><span class="value" id="kpiHomeATS">0%</span><span class="label">Home ATS</span></div>
-        <div class="subtle" id="kpiSpread"></div>
-      </div>
-      <div class="card grid-3">
-        <div class="kpi"><span class="value" id="kpiOvers">0%</span><span class="label">Overs Hit</span></div>
-        <div class="subtle" id="kpiAvgTotal"></div>
-      </div>
-      <div class="card grid-3">
-        <div class="kpi"><span class="value" id="kpiAvgScore">0.0</span><span class="label">Avg Score</span></div>
-        <div class="subtle">Points per game (both teams)</div>
-      </div>
+    <!-- KPIs (IDs kept to match your original expectations) -->
+    <section class="row" style="margin-top:10px">
+      <div class="card g3"><div class="kpi"><span class="num" id="totalGames">0</span><span>Total Games</span></div><div class="muted" id="homeAwaySplit"></div></div>
+      <div class="card g3"><div class="kpi"><span class="num" id="homeATSPct">0%</span><span>Home ATS</span></div><div class="muted" id="spreadRange"></div></div>
+      <div class="card g3"><div class="kpi"><span class="num" id="oversPct">0%</span><span>Overs Hit</span></div><div class="muted" id="avgTotal">Totals with result</div></div>
+      <div class="card g3"><div class="kpi"><span class="num" id="avgScore">0.0</span><span>Avg Score</span></div><div class="muted">Points per game</div></div>
     </section>
 
+    <!-- Charts -->
     <section class="row" style="margin-top:10px">
-      <div class="card grid-6">
-        <div style="display:flex; align-items:center; justify-content:space-between">
-          <h3 style="margin:0">Spread Distribution</h3>
-          <span class="chip" id="spreadSample">0 games</span>
-        </div>
-        <canvas id="spreadChart"></canvas>
-      </div>
-      <div class="card grid-6">
-        <div style="display:flex; align-items:center; justify-content:space-between">
-          <h3 style="margin:0">Monthly Totals</h3>
-          <span class="chip" id="monthlySample">0 months</span>
-        </div>
-        <canvas id="monthlyChart"></canvas>
-      </div>
-      <div class="card grid-12">
-        <div style="display:flex; align-items:center; justify-content:space-between">
-          <h3 style="margin:0">Team Scoring By Season</h3>
-          <div class="controls">
-            <input id="teamSearch" placeholder="Team (e.g. Alabama)" style="min-width: 220px"/>
-            <button class="btn" id="teamBtn">Update</button>
+      <div class="card g6"><h3 style="margin:0 0 8px">Spread Distribution</h3><canvas id="spreadChart"></canvas></div>
+      <div class="card g6"><h3 style="margin:0 0 8px">Monthly Game Counts</h3><canvas id="monthlyChart"></canvas></div>
+      <div class="card g12">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h3 style="margin:0">Team Scoring by Season</h3>
+          <div>
+            <input id="teamQ" placeholder="Team name (e.g., Alabama)" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);color:#fff">
+            <button id="teamBtn" style="padding:8px 12px;border:none;border-radius:8px;background:#f37024;color:#041625;font-weight:700">Update</button>
           </div>
         </div>
         <canvas id="teamScoringChart"></canvas>
       </div>
     </section>
 
-    <section id="errorBox" class="container" style="padding: 0; margin-top: 14px; display:none">
-      <div class="error" id="errorText">Error loading data.</div>
-    </section>
-
-    <div class="footer">Built for GitHub Pages—single file, no bundler. Paste in your CSV and go.</div>
-  </main>
+    <div class="err" id="errBox">Error loading data.</div>
+  </div>
 
   <script>
-    /*** App State ***/
-    const state = {
-      raw: [],    // full parsed rows
-      rows: [],   // filtered rows for current view
-      charts: {}, // chart instances
-      seasons: [],
-      books: [],
-    };
+    // ---- Auto-detect CSV on GitHub Pages (no manual upload) ----
+    // We try a list of common relative paths; you already have it in your repo.
+    const CANDIDATE_PATHS = [
+      'master_NCAAF_Data.csv',
+      'data/master_NCAAF_Data.csv',
+      'csv/master_NCAAF_Data.csv',
+      'ncaaf_master.csv',
+      'data/ncaaf_master.csv'
+    ];
 
-    /************ Utilities ************/
-    function showError(msg) {
-      const box = document.getElementById('errorBox');
-      const text = document.getElementById('errorText');
-      text.textContent = msg;
-      box.style.display = 'block';
-      console.error(msg);
-    }
-    function hideError() { document.getElementById('errorBox').style.display = 'none'; }
+    const state = { raw: [], rows: [], charts:{ } };
 
-    // Robust number coercion
     const toNum = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
-
-    // Expect columns (case-insensitive): season, month, date, home, away, home_score, away_score, spread, total, book, resultATS, resultOU
     function normalizeRow(row) {
-      const map = {};
-      for (const k in row) map[k.toLowerCase().trim()] = row[k];
-
+      const m = {}; for (const k in row) m[k.toLowerCase().trim()] = row[k];
       return {
-        season: (map.season || '').toString().trim(),
-        month: (map.month || '').toString().trim(),
-        date: (map.date || '').toString().trim(),
-        home: (map.home || map.home_team || '').toString().trim(),
-        away: (map.away || map.away_team || '').toString().trim(),
-        home_score: toNum(map.home_score ?? map.homepoints ?? map.home_pts),
-        away_score: toNum(map.away_score ?? map.awaypoints ?? map.away_pts),
-        spread: toNum(map.spread ?? map.close_spread),
-        total: toNum(map.total ?? map.close_total),
-        book: (map.book || map.bookmaker || '').toString().trim(),
-        resultats: (map.resultats || map.home_ats || '').toString().trim(),
-        resultou: (map.resultou || map.total_result || '').toString().trim(),
+        season: (m.season || '').toString().trim(),
+        month: (m.month || '').toString().trim(),
+        date: (m.date || '').toString().trim(),
+        home: (m.home || m.home_team || '').toString().trim(),
+        away: (m.away || m.away_team || '').toString().trim(),
+        home_score: toNum(m.home_score ?? m.homepoints ?? m.home_pts),
+        away_score: toNum(m.away_score ?? m.awaypoints ?? m.away_pts),
+        spread: toNum(m.spread ?? m.close_spread),
+        total: toNum(m.total ?? m.close_total),
+        book: (m.book || m.bookmaker || '').toString().trim(),
+        resultats: (m.resultats || m.home_ats || '').toString().trim(),
+        resultou: (m.resultou || m.total_result || '').toString().trim(),
       };
     }
 
-    function computeSeasonsAndBooks(rows) {
-      const seasons = new Set();
-      const books = new Set();
-      rows.forEach(r => {
-        if (r.season) seasons.add(r.season);
-        if (r.book) books.add(r.book);
-      });
-      state.seasons = Array.from(seasons).sort((a,b)=>Number(a)-Number(b));
-      state.books = ['All Books', ...Array.from(books).sort()];
-      fillSelects();
-    }
-
-    function fillSelects() {
-      const seasonSel = document.getElementById('seasonSelect');
-      const bookSel = document.getElementById('bookSelect');
-      seasonSel.innerHTML = '<option value="all">All Seasons</option>' +
-        state.seasons.map(s => `<option value="${s}">${s}</option>`).join('');
-      bookSel.innerHTML = state.books.map(b => `<option value="${b}">${b}</option>`).join('');
-    }
-
-    function applyFilters() {
-      const season = document.getElementById('seasonSelect').value;
-      const book = document.getElementById('bookSelect').value;
-
-      state.rows = state.raw.filter(r => {
-        const okSeason = (season === 'all') || (r.season === season);
-        const okBook = (book === 'All Books') || (r.book === book);
-        return okSeason && okBook;
+    async function parseCSV(text) {
+      return new Promise((resolve) => {
+        Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true,
+          complete: res => resolve(res.data.map(normalizeRow)) });
       });
     }
 
-    /************ KPIs ************/
+    async function fetchFirstWorking() {
+      // Prefer same-folder first
+      for (const rel of CANDIDATE_PATHS) {
+        try {
+          const url = new URL(rel, window.location.href).toString();
+          const resp = await fetch(url, { cache: 'no-store' });
+          if (resp.ok) {
+            const text = await resp.text();
+            const rows = await parseCSV(text);
+            if (rows.length) return { rows, source: url };
+          }
+        } catch (_) {}
+      }
+      // Try "raw" path if served from GitHub Pages and user pushed CSV to repo root
+      try {
+        const { host, pathname } = window.location;
+        // e.g. user.github.io/repo/ => owner/repo
+        const parts = pathname.split('/').filter(Boolean);
+        if (host.endsWith('github.io') && parts.length >= 1) {
+          const owner = host.replace('.github.io','');
+          const repo = parts[0];
+          for (const rel of CANDIDATE_PATHS) {
+            const raw = `https://raw.githubusercontent.com/${owner}/${repo}/main/${rel}`;
+            const r = await fetch(raw, { cache: 'no-store' });
+            if (r.ok) {
+              const text = await r.text();
+              const rows = await parseCSV(text);
+              if (rows.length) return { rows, source: raw };
+            }
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
+
+    function showErr(msg){ const b=document.getElementById('errBox'); b.textContent=msg; b.style.display='block'; }
+    function hideErr(){ document.getElementById('errBox').style.display='none'; }
+
     function updateKPIs() {
       const rows = state.rows;
-      const totalGames = rows.length;
-      let homeWins = 0, awayWins = 0;
-      let homeATSWins = 0, homeATSTotal = 0;
-      let overs = 0, totals = 0;
-      let pointsSum = 0;
+      const total = rows.length;
+      let homeWins=0, awayWins=0, homeATSWins=0, homeATSTotal=0, overs=0, totals=0, pointsSum=0;
 
       rows.forEach(r => {
-        const hs = r.home_score, as = r.away_score;
+        const hs=r.home_score, as=r.away_score;
         if (!Number.isNaN(hs) && !Number.isNaN(as)) {
-          pointsSum += (hs + as);
-          if (hs > as) homeWins++; else if (as > hs) awayWins++;
+          pointsSum += (hs+as);
+          if (hs>as) homeWins++; else if (as>hs) awayWins++;
         }
-        if (r.resultats) {
-          homeATSTotal++;
-          if (r.resultats.toLowerCase().includes('home')) homeATSWins++;
-        }
-        if (r.resultou) {
-          totals++;
-          if (r.resultou.toLowerCase().includes('over')) overs++;
-        }
+        if (r.resultats){ homeATSTotal++; if (r.resultats.toLowerCase().includes('home')) homeATSWins++; }
+        if (r.resultou){ totals++; if (r.resultou.toLowerCase().includes('over')) overs++; }
       });
 
-      const avgScore = totalGames ? (pointsSum / totalGames) : 0;
-      const homeATSPct = homeATSTotal ? (homeATSWins / homeATSTotal * 100) : 0;
-      const oversPct = totals ? (overs / totals * 100) : 0;
+      const avgScore = total ? (pointsSum/total) : 0;
+      const homeATSPct = homeATSTotal ? (homeATSWins/homeATSTotal*100) : 0;
+      const oversPct = totals ? (overs/totals*100) : 0;
 
-      document.getElementById('kpiTotalGames').textContent = totalGames.toLocaleString();
-      document.getElementById('kpiHomeAway').textContent = `Home ${homeWins} • Away ${awayWins}`;
-      document.getElementById('kpiHomeATS').textContent = homeATSPct.toFixed(1) + '%';
-      document.getElementById('kpiSpread').textContent = `From ${minSpread(rows)} to ${maxSpread(rows)} spread`;
-      document.getElementById('kpiOvers').textContent = oversPct.toFixed(1) + '%';
-      document.getElementById('kpiAvgTotal').textContent = `${totals} games with total`;
-      document.getElementById('kpiAvgScore').textContent = avgScore.toFixed(1);
+      document.getElementById('totalGames').textContent = total.toLocaleString();
+      document.getElementById('homeATSPct').textContent = homeATSPct.toFixed(1)+'%';
+      document.getElementById('oversPct').textContent = oversPct.toFixed(1)+'%';
+      document.getElementById('avgScore').textContent = avgScore.toFixed(1);
+      document.getElementById('homeAwaySplit').textContent = `Home ${homeWins} • Away ${awayWins}`;
+
+      const spreads = rows.map(r=>r.spread).filter(v=>!Number.isNaN(v));
+      const min = spreads.length? Math.min(...spreads).toFixed(1):'—';
+      const max = spreads.length? Math.max(...spreads).toFixed(1):'—';
+      document.getElementById('spreadRange').textContent = `Spread range ${min} to ${max}`;
+      document.getElementById('avgTotal').textContent = `${totals} games with totals result`;
     }
 
-    function minSpread(rows) {
-      const arr = rows.map(r => r.spread).filter(v => !Number.isNaN(v));
-      return arr.length ? Math.min(...arr).toFixed(1) : '—';
-    }
-    function maxSpread(rows) {
-      const arr = rows.map(r => r.spread).filter(v => !Number.isNaN(v));
-      return arr.length ? Math.max(...arr).toFixed(1) : '—';
-    }
+    function destroy(name){ if(state.charts[name]){ state.charts[name].destroy(); state.charts[name]=null; }}
 
-    /************ Charts ************/
-    function destroyChart(name) {
-      if (state.charts[name]) {
-        state.charts[name].destroy();
-        state.charts[name] = null;
-      }
-    }
-
-    function updateSpreadChart() {
-      const ctxEl = document.getElementById('spreadChart');
-      if (!ctxEl) return;
-      const spreads = state.rows.map(r => r.spread).filter(v => !Number.isNaN(v));
-      document.getElementById('spreadSample').textContent = spreads.length + ' games';
-
-      // Histogram buckets every 3 points
+    function updateSpreadChart(){
+      const el=document.getElementById('spreadChart'); if(!el)return;
+      const spreads = state.rows.map(r=>r.spread).filter(v=>!Number.isNaN(v));
       const buckets = new Map();
-      spreads.forEach(s => {
-        const key = (Math.round(s / 3) * 3);
-        buckets.set(key, (buckets.get(key) || 0) + 1);
+      spreads.forEach(s=>{ const k=Math.round(s/3)*3; buckets.set(k,(buckets.get(k)||0)+1); });
+      const labels = Array.from(buckets.keys()).sort((a,b)=>a-b).map(x=> (x>=0?'+':'')+x);
+      const data = labels.map(l=> buckets.get(Number(l))||0);
+      destroy('spread');
+      state.charts.spread = new Chart(el.getContext('2d'), {
+        type:'bar', data:{labels, datasets:[{label:'Games', data, borderWidth:1}]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{x:{grid:{display:false}}, y:{beginAtZero:true}}}
       });
+    }
 
-      const labels = Array.from(buckets.keys()).sort((a,b)=>a-b).map(x => (x>=0?'+':'') + x);
-      const data = labels.map(l => buckets.get(Number(l)) || 0);
+    function updateMonthlyChart(){
+      const el=document.getElementById('monthlyChart'); if(!el)return;
+      const map=new Map();
+      state.rows.forEach(r=>{ if(r.month) map.set(r.month,(map.get(r.month)||0)+1); });
+      const labels = Array.from(map.keys()).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+      const data = labels.map(l=>map.get(l));
+      destroy('monthly');
+      state.charts.monthly = new Chart(el.getContext('2d'), {
+        type:'line', data:{labels, datasets:[{label:'Games per month', data, borderWidth:3, tension:.25}]},
+        options:{ responsive:true, maintainAspectRatio:false }
+      });
+    }
 
-      destroyChart('spread');
-      state.charts.spread = new Chart(ctxEl.getContext('2d'), {
-        type: 'bar',
-        data: { labels, datasets: [{ label: 'Games', data, borderWidth: 1 }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: { x: { grid: { display: false }}, y: { beginAtZero: true } }
+    function updateTeamScoringChart(teamName){
+      const el=document.getElementById('teamScoringChart'); if(!el)return;
+      const q=(teamName||'').trim().toLowerCase(); if(!q){ destroy('team'); return; }
+      const bySeason={};
+      state.rows.forEach(r=>{
+        const isTeam = r.home?.toLowerCase().includes(q) || r.away?.toLowerCase().includes(q);
+        if(!isTeam) return;
+        const s=r.season||'Unknown'; bySeason[s] ||= {for:0, against:0, g:0};
+        if(!Number.isNaN(r.home_score) && !Number.isNaN(r.away_score)){
+          if(r.home?.toLowerCase().includes(q)){ bySeason[s].for+=r.home_score; bySeason[s].against+=r.away_score; }
+          else { bySeason[s].for+=r.away_score; bySeason[s].against+=r.home_score; }
+          bySeason[s].g++;
         }
       });
-    }
-
-    function updateMonthlyChart() {
-      const ctxEl = document.getElementById('monthlyChart');
-      if (!ctxEl) return;
-      const map = new Map();
-      state.rows.forEach(r => {
-        if (!r.month) return;
-        map.set(r.month, (map.get(r.month) || 0) + 1);
-      });
-      const labels = Array.from(map.keys()).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
-      const data = labels.map(l => map.get(l));
-
-      document.getElementById('monthlySample').textContent = labels.length + ' months';
-
-      destroyChart('monthly');
-      state.charts.monthly = new Chart(ctxEl.getContext('2d'), {
-        type: 'line',
-        data: { labels, datasets: [{ label: 'Games per month', data, borderWidth: 3, tension: .25 }] },
-        options: { responsive: true, maintainAspectRatio: false }
+      const rows = Object.entries(bySeason).sort(([a],[b])=>Number(a)-Number(b))
+        .map(([s,v])=>({s, for:v.g? v.for/v.g:0, against:v.g? v.against/v.g:0}));
+      destroy('team');
+      if(!rows.length) return;
+      state.charts.team = new Chart(el.getContext('2d'), {
+        type:'line',
+        data:{ labels:rows.map(r=>r.s), datasets:[
+          {label:'Points For', data:rows.map(r=>r.for), borderWidth:3, tension:.25},
+          {label:'Points Against', data:rows.map(r=>r.against), borderWidth:3, tension:.25},
+        ]},
+        options:{ responsive:true, maintainAspectRatio:false }
       });
     }
 
-    function updateTeamScoringChart(teamName) {
-      const ctxEl = document.getElementById('teamScoringChart');
-      if (!ctxEl) return;
-
-      const seasonData = {};
-      state.rows.forEach(r => {
-        if (!teamName) return;
-        const isTeam = (r.home?.toLowerCase().includes(teamName) || r.away?.toLowerCase().includes(teamName));
-        if (!isTeam) return;
-        const s = r.season || 'Unknown';
-        seasonData[s] ||= { for: 0, against: 0, games: 0 };
-
-        if (!Number.isNaN(r.home_score) && !Number.isNaN(r.away_score)) {
-          if (r.home?.toLowerCase().includes(teamName)) {
-            seasonData[s].for += r.home_score; seasonData[s].against += r.away_score;
-          } else {
-            seasonData[s].for += r.away_score; seasonData[s].against += r.home_score;
-          }
-          seasonData[s].games++;
-        }
-      });
-
-      const rows = Object.entries(seasonData)
-        .sort(([a],[b]) => Number(a) - Number(b))
-        .map(([s, v]) => ({ season: s, avgFor: v.games ? v.for/v.games : 0, avgAgainst: v.games ? v.against/v.games : 0 }));
-
-      destroyChart('teamScoring');
-      if (!rows.length) { return; }
-
-      state.charts.teamScoring = new Chart(ctxEl.getContext('2d'), {
-        type: 'line',
-        data: {
-          labels: rows.map(r => r.season),
-          datasets: [
-            { label: 'Points For', data: rows.map(r => r.avgFor), borderWidth: 3, tension: .25 },
-            { label: 'Points Against', data: rows.map(r => r.avgAgainst), borderWidth: 3, tension: .25 }
-          ]
-        },
-        options: { responsive: true, maintainAspectRatio: false }
-      });
-    }
-
-    /************ Data Loading ************/
-    async function parseCSVText(text) {
-      return new Promise((resolve) => {
-        Papa.parse(text, {
-          header: true,
-          dynamicTyping: false,
-          skipEmptyLines: true,
-          complete: (res) => resolve(res.data.map(normalizeRow))
-        });
-      });
-    }
-
-    async function loadFromFile(file) {
-      try {
-        hideError();
-        const text = await file.text();
-        const rows = await parseCSVText(text);
-        if (!rows.length) return showError('CSV parsed but contains 0 rows.');
-        state.raw = rows;
-        computeSeasonsAndBooks(rows);
-        applyFilters();
-        updateAll();
-      } catch (e) {
-        showError('Failed to load CSV file: ' + e.message);
-      }
-    }
-
-    async function tryFetchDefault() {
-      try {
-        const resp = await fetch('./master_NCAAF_Data.csv', { cache: 'no-store' });
-        if (!resp.ok) return;
-        const text = await resp.text();
-        const rows = await parseCSVText(text);
-        if (rows.length) {
-          state.raw = rows;
-          computeSeasonsAndBooks(rows);
-          applyFilters();
-          updateAll();
-        }
-      } catch (e) {
-        // Silent: okay to start empty
-      }
-    }
-
-    function updateAll() {
+    function refresh(){
       updateKPIs();
       updateSpreadChart();
       updateMonthlyChart();
-      const q = document.getElementById('teamSearch').value.trim().toLowerCase();
-      if (q) updateTeamScoringChart(q);
+      const q=document.getElementById('teamQ').value;
+      updateTeamScoringChart(q);
     }
 
-    /************ Event Wiring ************/
-    document.getElementById('fileInput').addEventListener('change', (e) => {
-      const f = e.target.files?.[0];
-      if (f) loadFromFile(f);
-    });
-    document.getElementById('seasonSelect').addEventListener('change', () => { applyFilters(); updateAll(); });
-    document.getElementById('bookSelect').addEventListener('change', () => { applyFilters(); updateAll(); });
-    document.getElementById('resetBtn').addEventListener('click', () => {
-      document.getElementById('seasonSelect').value = 'all';
-      document.getElementById('bookSelect').selectedIndex = 0;
-      applyFilters(); updateAll();
-    });
-    document.getElementById('teamBtn').addEventListener('click', () => {
-      const q = document.getElementById('teamSearch').value.trim().toLowerCase();
-      updateTeamScoringChart(q);
+    document.getElementById('teamBtn').addEventListener('click', ()=>{
+      updateTeamScoringChart(document.getElementById('teamQ').value);
     });
 
-    // Boot
-    (async function init() {
-      await tryFetchDefault(); // if file exists in repo
+    (async function init(){
+      hideErr();
+      const found = await fetchFirstWorking();
+      if(!found){ showErr('Could not find master_NCAAF_Data.csv in this site. Place it in the same folder or /data or /csv.'); return; }
+      document.getElementById('sourceInfo').textContent = 'Loaded: ' + found.source;
+      state.raw = found.rows;
+      state.rows = state.raw.slice(); // no extra filters yet
+      refresh();
     })();
   </script>
 </body>
