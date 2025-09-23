@@ -206,8 +206,10 @@
     function showTab(tabName) {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.getElementById(tabName)?.classList.add('active');
-      document.querySelector('[data-tab="'+tabName+'"]')?.classList.add('active');
+      const tabPanel = document.getElementById(tabName);
+      if (tabPanel) tabPanel.classList.add('active');
+      const tabButton = document.querySelector('[data-tab="'+tabName+'"]');
+      if (tabButton) tabButton.classList.add('active');
     }
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => showTab(tab.getAttribute('data-tab'))));
@@ -288,12 +290,19 @@
     }
 
     function applyFilters() {
-      const s = document.getElementById('seasonFilter')?.value || 'all';
-      const p = document.getElementById('providerFilter')?.value || 'all';
-      const c = document.getElementById('conferenceFilter')?.value || 'all';
-      const w = document.getElementById('weekFilter')?.value || 'all';
-      const t = document.getElementById('teamFilter')?.value || 'all';
-      const cy = document.getElementById('conferenceYearFilter')?.value || 'all';
+      const seasonSel = document.getElementById('seasonFilter');
+      const providerSel = document.getElementById('providerFilter');
+      const conferenceSel = document.getElementById('conferenceFilter');
+      const weekSel = document.getElementById('weekFilter');
+      const teamSel = document.getElementById('teamFilter');
+      const conferenceYearSel = document.getElementById('conferenceYearFilter');
+
+      const s = seasonSel ? seasonSel.value : 'all';
+      const p = providerSel ? providerSel.value : 'all';
+      const c = conferenceSel ? conferenceSel.value : 'all';
+      const w = weekSel ? weekSel.value : 'all';
+      const t = teamSel ? teamSel.value : 'all';
+      const cy = conferenceYearSel ? conferenceYearSel.value : 'all';
 
       filteredData = allData.filter(r => {
         if (s !== 'all' && r.Season != s) return false;
@@ -364,14 +373,14 @@
     }
 
     function updateAvgSpreadTrendChart(){
-      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.Spread!=null){ (bucket[r.Season] ||= []).push(Math.abs(r.Spread)); }});
+      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.Spread!=null){ if (!bucket[r.Season]) bucket[r.Season] = []; bucket[r.Season].push(Math.abs(r.Spread)); }});
       const data=Object.entries(bucket).sort(([a],[b])=>a-b).map(([s,arr])=>({s, v: arr.reduce((x,y)=>x+y,0)/arr.length }));
       const ctx=document.getElementById('avgSpreadTrendChart'); if(!ctx||!data.length) return; destroy('avgSpreadTrendChart');
       charts.avgSpreadTrendChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:data.map(d=>d.s), datasets:[{ label:'Average Spread', data:data.map(d=>d.v), borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)', borderWidth:3, fill:true }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Average Spread'} }, x:{ title:{display:true, text:'Season'} } } } });
     }
 
     function updateAvgTotalsTrendChart(){
-      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.OverUnder!=null){ (bucket[r.Season] ||= []).push(r.OverUnder); }});
+      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.OverUnder!=null){ if (!bucket[r.Season]) bucket[r.Season] = []; bucket[r.Season].push(r.OverUnder); }});
       const data=Object.entries(bucket).sort(([a],[b])=>a-b).map(([s,arr])=>({s, v: arr.reduce((x,y)=>x+y,0)/arr.length }));
       const ctx=document.getElementById('avgTotalsTrendChart'); if(!ctx||!data.length) return; destroy('avgTotalsTrendChart');
       charts.avgTotalsTrendChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:data.map(d=>d.s), datasets:[{ label:'Average Total', data:data.map(d=>d.v), borderColor:'#00cec9', backgroundColor:'rgba(0,206,201,.1)', borderWidth:3, fill:true }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Average Total'} }, x:{ title:{display:true, text:'Season'} } } } });
@@ -385,7 +394,7 @@
     }
 
     function updateScoringTrendChart(){
-      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.HomeScore!=null && r.AwayScore!=null){ (bucket[r.Season] ||= {sum:0,g:0}); bucket[r.Season].sum += r.HomeScore + r.AwayScore; bucket[r.Season].g++; }});
+      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.HomeScore!=null && r.AwayScore!=null){ if (!bucket[r.Season]) bucket[r.Season] = {sum:0,g:0}; bucket[r.Season].sum += r.HomeScore + r.AwayScore; bucket[r.Season].g++; }});
       const data=Object.entries(bucket).sort(([a],[b])=>a-b).map(([s,o])=>({s, v:o.sum/o.g}));
       const ctx=document.getElementById('scoringTrendChart'); if(!ctx||!data.length) return; destroy('scoringTrendChart');
       charts.scoringTrendChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:data.map(d=>d.s), datasets:[{ label:'Average Points Per Game', data:data.map(d=>d.v), borderColor:'#e17055', backgroundColor:'rgba(225,112,85,.1)', borderWidth:3, fill:true }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Average Total Points'} }, x:{ title:{display:true, text:'Season'} } } } });
@@ -418,6 +427,7 @@
 
       updateSpreadDistChart(data);
       updateHomeAwayATSChart(homeATS, awayATS, pushes);
+      updateATSSeasonChart(data);
     }
 
     function updateSpreadDistChart(data){
@@ -435,13 +445,131 @@
       charts.homeAwayATSChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Home ATS Wins','Away ATS Wins','Pushes'], datasets:[{ data:[homeATS,awayATS,pushes], backgroundColor:['#00b894','#ff6b35','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
     }
 
+    function updateATSSeasonChart(data){
+      const seasonBuckets = {};
+      data.forEach(r => {
+        if (!r.Season || r.HomeScore==null || r.AwayScore==null || r.Spread==null) return;
+        if (!seasonBuckets[r.Season]) seasonBuckets[r.Season] = { homeWins:0, awayWins:0 };
+        const margin = (r.HomeScore||0) - (r.AwayScore||0);
+        const atsResult = margin + (r.Spread||0);
+        if (Math.abs(atsResult) < 0.5) return;
+        if (atsResult > 0) seasonBuckets[r.Season].homeWins++;
+        else seasonBuckets[r.Season].awayWins++;
+      });
+
+      const seasons = Object.keys(seasonBuckets).sort((a,b)=>a-b);
+      const ctx = document.getElementById('atsSeasonChart');
+      destroy('atsSeasonChart');
+      if (!ctx || !seasons.length) return;
+
+      const homeData = seasons.map(season => seasonBuckets[season].homeWins);
+      const awayData = seasons.map(season => seasonBuckets[season].awayWins);
+
+      charts.atsSeasonChart = new Chart(ctx.getContext('2d'), {
+        type:'bar',
+        data:{
+          labels:seasons,
+          datasets:[
+            { label:'Home Covers', data:homeData, backgroundColor:'rgba(0,184,148,0.8)', borderColor:'#00b894', borderWidth:2 },
+            { label:'Away Covers', data:awayData, backgroundColor:'rgba(255,107,53,0.8)', borderColor:'#ff6b35', borderWidth:2 }
+          ]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          scales:{
+            x:{ stacked:true },
+            y:{ beginAtZero:true, stacked:true, title:{ display:true, text:'ATS Covers' } }
+          }
+        }
+      });
+    }
+
+    function updateTotalsAnalysis(){
+      const data = filteredData.filter(r=> r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null);
+      const statsEl = document.getElementById('totals-stats');
+      if (!data.length){
+        if (statsEl) statsEl.innerHTML = '<p style="text-align:center">No totals data for current filters</p>';
+        destroy('totalsDistChart');
+        destroy('overUnderChart');
+        return;
+      }
+
+      let overs=0, unders=0, pushes=0;
+      let totalLineSum=0, totalScoreSum=0, diffSum=0;
+      data.forEach(r=>{
+        const totalLine = r.OverUnder || 0;
+        const totalScore = (r.HomeScore||0) + (r.AwayScore||0);
+        const diff = totalScore - totalLine;
+        totalLineSum += totalLine;
+        totalScoreSum += totalScore;
+        diffSum += Math.abs(diff);
+        if (Math.abs(diff) < 0.5) pushes++;
+        else if (diff > 0) overs++;
+        else unders++;
+      });
+
+      const totalGames = overs + unders + pushes;
+      const avgTotalLine = totalLineSum / data.length;
+      const avgActualTotal = totalScoreSum / data.length;
+      const avgMiss = diffSum / data.length;
+
+      statsEl.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Games with Totals</div></div>
+        <div class="stat-card"><div class="stat-number">${totalGames ? (overs/totalGames*100).toFixed(1) : '0.0'}%</div><div class="stat-label">Overs Hit Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${avgTotalLine.toFixed(1)}</div><div class="stat-label">Avg Closing Total</div></div>
+        <div class="stat-card"><div class="stat-number">${avgActualTotal.toFixed(1)}</div><div class="stat-label">Avg Actual Total</div></div>
+        <div class="stat-card"><div class="stat-number">${avgMiss.toFixed(1)}</div><div class="stat-label">Avg Miss vs Line</div></div>`;
+
+      updateTotalsDistChart(data);
+      updateOverUnderChart(overs, unders, pushes);
+    }
+
+    function updateTotalsDistChart(data){
+      const buckets = {'<40':0,'40-49':0,'50-59':0,'60-69':0,'70-79':0,'80+':0};
+      data.forEach(r=>{
+        const total = (r.HomeScore||0) + (r.AwayScore||0);
+        if (total < 40) buckets['<40']++;
+        else if (total < 50) buckets['40-49']++;
+        else if (total < 60) buckets['50-59']++;
+        else if (total < 70) buckets['60-69']++;
+        else if (total < 80) buckets['70-79']++;
+        else buckets['80+']++;
+      });
+
+      const ctx = document.getElementById('totalsDistChart');
+      destroy('totalsDistChart');
+      if (!ctx) return;
+
+      charts.totalsDistChart = new Chart(ctx.getContext('2d'), {
+        type:'bar',
+        data:{
+          labels:Object.keys(buckets),
+          datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'rgba(42,82,152,0.8)', borderColor:'rgba(42,82,152,1)', borderWidth:2 }]
+        },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    function updateOverUnderChart(overs, unders, pushes){
+      const ctx = document.getElementById('overUnderChart');
+      destroy('overUnderChart');
+      if (!ctx) return;
+
+      charts.overUnderChart = new Chart(ctx.getContext('2d'), {
+        type:'doughnut',
+        data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[overs,unders,pushes], backgroundColor:['#ff6b35','#00b894','#ddd'] }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+      });
+    }
+
     // ====== Conference Analysis ======
     function updateConferenceAnalysis(){
       const counts={}; const stats={};
       filteredData.forEach(r=>{
         if(!r.HomeConference) return;
         counts[r.HomeConference]=(counts[r.HomeConference]||0)+1;
-        stats[r.HomeConference] ||= {games:0, totalPoints:0, spreads:[], totals:[]};
+        if (!stats[r.HomeConference]) stats[r.HomeConference] = {games:0, totalPoints:0, spreads:[], totals:[]};
         stats[r.HomeConference].games++;
         if (r.HomeScore!=null && r.AwayScore!=null) stats[r.HomeConference].totalPoints += r.HomeScore + r.AwayScore;
         if (r.Spread!=null) stats[r.HomeConference].spreads.push(Math.abs(r.Spread));
@@ -545,7 +673,7 @@
       const bucket={};
       data.forEach(r=>{
         if (!r.Season || r.Spread==null || r.HomeScore==null || r.AwayScore==null) return;
-        bucket[r.Season] ||= { ats:0, g:0 };
+        if (!bucket[r.Season]) bucket[r.Season] = { ats:0, g:0 };
         const isHome = r.HomeTeam_x===team;
         const margin = r.HomeScore - r.AwayScore;
         const teamMargin = isHome ? margin : -margin;
@@ -589,7 +717,7 @@
       const bySeason={};
       data.forEach(r=>{
         if (!r.Season || r.HomeScore==null || r.AwayScore==null) return;
-        bySeason[r.Season] ||= { pf:0, pa:0, g:0 };
+        if (!bySeason[r.Season]) bySeason[r.Season] = { pf:0, pa:0, g:0 };
         const isHome = r.HomeTeam_x===team;
         const tScore = isHome? r.HomeScore : r.AwayScore;
         const oScore = isHome? r.AwayScore : r.HomeScore;
@@ -597,10 +725,43 @@
         bySeason[r.Season].pa += oScore;
         bySeason[r.Season].g++;
       });
-      const arr=Object.entries(bySeason).sort(([a],[b])=>a-b).map(([s,o])=>({s, for:o.pf/o.g, against:o.pa/o.g}));
+      const arr=Object.entries(bySeason)
+        .sort(([a],[b])=>a-b)
+        .map(([season, totals])=>({
+          season,
+          pointsFor: totals.pf / totals.g,
+          pointsAgainst: totals.pa / totals.g
+        }));
       destroy('teamScoringChart');
       if(!arr.length) return;
-      charts.teamScoringChart=new Chart(ctxEl.getContext('2d'),{ type:'line', data:{ labels:arr.map(d=>d.s), datasets:[ {label:'Points For', data:arr.map(d=>d.for), borderColor:'#00b894', backgroundColor:'rgba(0,184,148,.1)', borderWidth:3}, {label:'Points Against', data:arr.map(d=>d.against), borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)', borderWidth:3} ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:true, position:'top' } }, scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Points Per Game' } } } });
+      charts.teamScoringChart=new Chart(ctxEl.getContext('2d'),{
+        type:'line',
+        data:{
+          labels:arr.map(d=>d.season),
+          datasets:[
+            {
+              label:'Points For',
+              data:arr.map(d=>d.pointsFor),
+              borderColor:'#00b894',
+              backgroundColor:'rgba(0,184,148,.1)',
+              borderWidth:3
+            },
+            {
+              label:'Points Against',
+              data:arr.map(d=>d.pointsAgainst),
+              borderColor:'#ff6b35',
+              backgroundColor:'rgba(255,107,53,.1)',
+              borderWidth:3
+            }
+          ]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          plugins:{ legend:{ display:true, position:'top' } },
+          scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Points Per Game' } } }
+        }
+      });
     }
 
     function updateTeamGamesTable(team, data){
@@ -640,8 +801,10 @@
 
     // ====== Year-by-Year Analysis ======
     function updateYearAnalysis(){
-      const year=document.getElementById('yearSelectAnalysis')?.value;
-      const cmp=document.getElementById('compareYearSelect')?.value;
+      const yearSelect = document.getElementById('yearSelectAnalysis');
+      const compareSelect = document.getElementById('compareYearSelect');
+      const year = yearSelect ? yearSelect.value : undefined;
+      const cmp = compareSelect ? compareSelect.value : undefined;
       if (!year){ document.getElementById('year-stats').innerHTML='<p style="text-align:center;color:#666">Select a season to view detailed analysis</p>'; return; }
       const yearData = allData.filter(r=> r.Season==year );
       const cmpData = cmp ? allData.filter(r=> r.Season==cmp ) : null;
