@@ -514,21 +514,26 @@ const element = document.getElementById('conferenceTable');
 
         function updateYearStats(year, yearData, compareYear, compareData) {
             const totalGames = yearData.length;
-            const avgSpread = yearData.filter(row => row.Spread != null)
-                .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / yearData.filter(row => row.Spread != null).length || 0;
             
-            const avgTotal = yearData.filter(row => row.OverUnder != null)
-                .reduce((sum, row) => sum + row.OverUnder, 0) / yearData.filter(row => row.OverUnder != null).length || 0;
+            // Safe calculations with null checks
+            const spreadGames = yearData.filter(row => row.Spread != null);
+            const avgSpread = spreadGames.length > 0 ? 
+                spreadGames.reduce((sum, row) => sum + Math.abs(row.Spread || 0), 0) / spreadGames.length : 0;
             
-            const avgScore = yearData.filter(row => row.HomeScore != null && row.AwayScore != null)
-                .reduce((sum, row) => sum + row.HomeScore + row.AwayScore, 0) / yearData.filter(row => row.HomeScore != null && row.AwayScore != null).length || 0;
+            const totalGames_valid = yearData.filter(row => row.OverUnder != null);
+            const avgTotal = totalGames_valid.length > 0 ?
+                totalGames_valid.reduce((sum, row) => sum + (row.OverUnder || 0), 0) / totalGames_valid.length : 0;
+            
+            const scoreGames = yearData.filter(row => row.HomeScore != null && row.AwayScore != null);
+            const avgScore = scoreGames.length > 0 ?
+                scoreGames.reduce((sum, row) => sum + (row.HomeScore || 0) + (row.AwayScore || 0), 0) / scoreGames.length : 0;
 
-            // ATS Analysis
+            // ATS Analysis with safe calculations
             let homeATS = 0, awayATS = 0, atsTotal = 0;
             yearData.forEach(row => {
                 if (row.Spread != null && row.HomeScore != null && row.AwayScore != null) {
-                    const actualMargin = row.HomeScore - row.AwayScore;
-                    const atsMargin = actualMargin + row.Spread;
+                    const actualMargin = (row.HomeScore || 0) - (row.AwayScore || 0);
+                    const atsMargin = actualMargin + (row.Spread || 0);
                     if (Math.abs(atsMargin) >= 0.5) {
                         atsTotal++;
                         if (atsMargin > 0) homeATS++;
@@ -539,12 +544,12 @@ const element = document.getElementById('conferenceTable');
 
             const homeATSPct = atsTotal > 0 ? (homeATS / atsTotal * 100) : 0;
 
-            // Over/Under Analysis  
+            // Over/Under Analysis with safe calculations
             let overs = 0, totalsTotal = 0;
             yearData.forEach(row => {
                 if (row.OverUnder != null && row.HomeScore != null && row.AwayScore != null) {
-                    const actualTotal = row.HomeScore + row.AwayScore;
-                    const diff = actualTotal - row.OverUnder;
+                    const actualTotal = (row.HomeScore || 0) + (row.AwayScore || 0);
+                    const diff = actualTotal - (row.OverUnder || 0);
                     if (Math.abs(diff) >= 0.5) {
                         totalsTotal++;
                         if (diff > 0) overs++;
@@ -581,7 +586,8 @@ const element = document.getElementById('conferenceTable');
                 </div>
             `;
 
-            document.getElementById('year-stats').innerHTML = statsHtml;
+            const element = document.getElementById('year-stats');
+            if (element) element.innerHTML = statsHtml;
         }
 
         function updateYearCharts(year, yearData, compareYear, compareData) {
@@ -1747,11 +1753,11 @@ const element = document.getElementById('conferenceTable');
             
             const avgSpread = gamesWithSpreads > 0 ? 
                 filteredData.filter(row => row.Spread != null)
-                    .reduce((sum, row) => sum + Math.abs(row.Spread), 0) / gamesWithSpreads : 0;
+                    .reduce((sum, row) => sum + Math.abs(row.Spread || 0), 0) / gamesWithSpreads : 0;
             
             const avgTotal = gamesWithTotals > 0 ?
                 filteredData.filter(row => row.OverUnder != null)
-                    .reduce((sum, row) => sum + row.OverUnder, 0) / gamesWithTotals : 0;
+                    .reduce((sum, row) => sum + (row.OverUnder || 0), 0) / gamesWithTotals : 0;
 
             const statsHtml = `
                 <div class="stat-card">
@@ -1759,15 +1765,15 @@ const element = document.getElementById('conferenceTable');
                     <div class="stat-label">Total Games</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${((gamesWithSpreads/totalGames)*100).toFixed(1)}%</div>
+                    <div class="stat-number">${totalGames > 0 ? ((gamesWithSpreads/totalGames)*100).toFixed(1) : '0.0'}%</div>
                     <div class="stat-label">Spread Coverage</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${avgSpread ? avgSpread.toFixed(1) : 'N/A'}</div>
+                    <div class="stat-number">${avgSpread > 0 ? avgSpread.toFixed(1) : 'N/A'}</div>
                     <div class="stat-label">Avg Spread</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${avgTotal ? avgTotal.toFixed(1) : 'N/A'}</div>
+                    <div class="stat-number">${avgTotal > 0 ? avgTotal.toFixed(1) : 'N/A'}</div>
                     <div class="stat-label">Avg Total</div>
                 </div>
             `;
@@ -2070,13 +2076,17 @@ const element = document.getElementById('conferenceTable');
                 row.Spread != null && row.HomeScore != null && row.AwayScore != null
             );
             
-            if (spreadData.length === 0) return;
+            if (spreadData.length === 0) {
+                const element = document.getElementById('spread-stats');
+                if (element) element.innerHTML = '<p style="text-align: center;">No spread data available for current filters</p>';
+                return;
+            }
 
             let homeATS = 0, awayATS = 0, pushes = 0;
 
             spreadData.forEach(row => {
-                const actualMargin = row.HomeScore - row.AwayScore;
-                const spreadMargin = actualMargin + row.Spread;
+                const actualMargin = (row.HomeScore || 0) - (row.AwayScore || 0);
+                const spreadMargin = actualMargin + (row.Spread || 0);
                 
                 if (Math.abs(spreadMargin) < 0.5) {
                     pushes++;
@@ -2091,8 +2101,10 @@ const element = document.getElementById('conferenceTable');
             const homeATSPct = totalGames > 0 ? (homeATS / totalGames * 100).toFixed(1) : '0.0';
             const awayATSPct = totalGames > 0 ? (awayATS / totalGames * 100).toFixed(1) : '0.0';
             
-            const avgSpread = spreadData.reduce((sum, row) => sum + Math.abs(row.Spread), 0) / spreadData.length;
-            const avgMargin = spreadData.reduce((sum, row) => sum + Math.abs(row.HomeScore - row.AwayScore), 0) / spreadData.length;
+            const avgSpread = spreadData.length > 0 ? 
+                spreadData.reduce((sum, row) => sum + Math.abs(row.Spread || 0), 0) / spreadData.length : 0;
+            const avgMargin = spreadData.length > 0 ? 
+                spreadData.reduce((sum, row) => sum + Math.abs((row.HomeScore || 0) - (row.AwayScore || 0)), 0) / spreadData.length : 0;
 
             const spreadStatsHtml = `
                 <div class="stat-card">
@@ -2194,13 +2206,17 @@ const element = document.getElementById('conferenceTable');
                 row.OverUnder != null && row.HomeScore != null && row.AwayScore != null
             );
             
-            if (totalsData.length === 0) return;
+            if (totalsData.length === 0) {
+                const element = document.getElementById('totals-stats');
+                if (element) element.innerHTML = '<p style="text-align: center;">No totals data available for current filters</p>';
+                return;
+            }
 
             let overs = 0, unders = 0, totalPushes = 0;
 
             totalsData.forEach(row => {
-                const actualTotal = row.HomeScore + row.AwayScore;
-                const diff = actualTotal - row.OverUnder;
+                const actualTotal = (row.HomeScore || 0) + (row.AwayScore || 0);
+                const diff = actualTotal - (row.OverUnder || 0);
                 
                 if (Math.abs(diff) < 0.5) {
                     totalPushes++;
@@ -2215,8 +2231,10 @@ const element = document.getElementById('conferenceTable');
             const oversPct = totalGames > 0 ? (overs / totalGames * 100).toFixed(1) : '0.0';
             const undersPct = totalGames > 0 ? (unders / totalGames * 100).toFixed(1) : '0.0';
             
-            const avgTotal = totalsData.reduce((sum, row) => sum + row.OverUnder, 0) / totalsData.length;
-            const avgActualTotal = totalsData.reduce((sum, row) => sum + (row.HomeScore + row.AwayScore), 0) / totalsData.length;
+            const avgTotal = totalsData.length > 0 ? 
+                totalsData.reduce((sum, row) => sum + (row.OverUnder || 0), 0) / totalsData.length : 0;
+            const avgActualTotal = totalsData.length > 0 ? 
+                totalsData.reduce((sum, row) => sum + ((row.HomeScore || 0) + (row.AwayScore || 0)), 0) / totalsData.length : 0;
 
             const totalsStatsHtml = `
                 <div class="stat-card">
