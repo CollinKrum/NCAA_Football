@@ -1,0 +1,10 @@
+# Data files (optional - you can include or exclude)
+*.csv
+node_modules/
+.DS_Store
+*.log
+
+# IDE files
+.vscode/
+*.swp
+*.swo
