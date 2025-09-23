@@ -594,7 +594,18 @@
     // ====== Team Analysis ======
     function updateTeamAnalysis(){
       const team=document.getElementById('teamSelectAnalysis').value;
-      if(!team){ document.getElementById('team-stats').innerHTML='<p style="text-align:center;color:#666">Select a team to view detailed analysis</p>'; return; }
+      if(!team){
+        document.getElementById('team-stats').innerHTML='<p style="text-align:center;color:#666">Select a team to view detailed analysis</p>';
+        ['teamHomeAwayChart','teamATSSeasonChart','teamSpreadChart','teamTotalsChart','teamScoringChart'].forEach(id=>{
+          destroy(id);
+          const canvas=document.getElementById(id);
+          const ctx=canvas?.getContext('2d');
+          if(ctx){ ctx.clearRect(0,0,canvas.width,canvas.height); }
+        });
+        const gamesTable=document.getElementById('teamGamesTable');
+        if(gamesTable){ gamesTable.innerHTML='<p style="text-align:center;color:#666">Select a team to view recent games</p>'; }
+        return;
+      }
       const teamData = allData.filter(r => r.HomeTeam_x===team || r.AwayTeam_x===team);
       updateTeamStats(team, teamData);
       updateTeamHomeAwayChart(team, teamData);
