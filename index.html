@@ -630,6 +630,7 @@
             updateSpreadAnalysis();
             updateTotalsAnalysis();
             updateConferenceAnalysis();
+            updateHistoricalTrends(); // Add this line
         }
 
         // Apply current filter settings
@@ -688,6 +689,210 @@
         function updateCharts() {
             updateSeasonChart();
             updateProviderChart();
+            updateHistoricalTrends();
+        }
+
+        // Update historical trends (for trends tab)
+        function updateHistoricalTrends() {
+            updateAvgSpreadTrendChart();
+            updateAvgTotalsTrendChart();
+            updateVolumeTrendChart();
+            updateScoringTrendChart();
+        }
+
+        // Update average spreads by season
+        function updateAvgSpreadTrendChart() {
+            const seasonData = {};
+            
+            filteredData.forEach(row => {
+                if (row.Season && row.Spread != null) {
+                    if (!seasonData[row.Season]) {
+                        seasonData[row.Season] = { spreads: [], count: 0 };
+                    }
+                    seasonData[row.Season].spreads.push(Math.abs(row.Spread));
+                    seasonData[row.Season].count++;
+                }
+            });
+
+            const chartData = Object.entries(seasonData)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([season, data]) => ({
+                    season,
+                    avgSpread: data.spreads.reduce((a, b) => a + b, 0) / data.spreads.length
+                }));
+
+            const ctx = document.getElementById('avgSpreadTrendChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.avgSpreadTrendChart) charts.avgSpreadTrendChart.destroy();
+
+            charts.avgSpreadTrendChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.season),
+                    datasets: [{
+                        label: 'Average Spread',
+                        data: chartData.map(d => d.avgSpread),
+                        borderColor: '#ff6b35',
+                        backgroundColor: 'rgba(255, 107, 53, 0.1)',
+                        borderWidth: 3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Average Spread' } },
+                        x: { title: { display: true, text: 'Season' } }
+                    }
+                }
+            });
+        }
+
+        // Update average totals by season
+        function updateAvgTotalsTrendChart() {
+            const seasonData = {};
+            
+            filteredData.forEach(row => {
+                if (row.Season && row.OverUnder != null) {
+                    if (!seasonData[row.Season]) {
+                        seasonData[row.Season] = { totals: [], count: 0 };
+                    }
+                    seasonData[row.Season].totals.push(row.OverUnder);
+                    seasonData[row.Season].count++;
+                }
+            });
+
+            const chartData = Object.entries(seasonData)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([season, data]) => ({
+                    season,
+                    avgTotal: data.totals.reduce((a, b) => a + b, 0) / data.totals.length
+                }));
+
+            const ctx = document.getElementById('avgTotalsTrendChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.avgTotalsTrendChart) charts.avgTotalsTrendChart.destroy();
+
+            charts.avgTotalsTrendChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.season),
+                    datasets: [{
+                        label: 'Average Total',
+                        data: chartData.map(d => d.avgTotal),
+                        borderColor: '#00cec9',
+                        backgroundColor: 'rgba(0, 206, 201, 0.1)',
+                        borderWidth: 3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Average Total' } },
+                        x: { title: { display: true, text: 'Season' } }
+                    }
+                }
+            });
+        }
+
+        // Update market volume trends
+        function updateVolumeTrendChart() {
+            const seasonCounts = {};
+            
+            filteredData.forEach(row => {
+                if (row.Season) {
+                    seasonCounts[row.Season] = (seasonCounts[row.Season] || 0) + 1;
+                }
+            });
+
+            const chartData = Object.entries(seasonCounts)
+                .sort(([a], [b]) => Number(a) - Number(b));
+
+            const ctx = document.getElementById('volumeTrendChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.volumeTrendChart) charts.volumeTrendChart.destroy();
+
+            charts.volumeTrendChart = new Chart(ctx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: chartData.map(([season]) => season),
+                    datasets: [{
+                        label: 'Games',
+                        data: chartData.map(([, count]) => count),
+                        backgroundColor: 'rgba(108, 92, 231, 0.8)',
+                        borderColor: 'rgba(108, 92, 231, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Number of Games' } },
+                        x: { title: { display: true, text: 'Season' } }
+                    }
+                }
+            });
+        }
+
+        // Update scoring trends by season
+        function updateScoringTrendChart() {
+            const seasonData = {};
+            
+            filteredData.forEach(row => {
+                if (row.Season && row.HomeScore != null && row.AwayScore != null) {
+                    if (!seasonData[row.Season]) {
+                        seasonData[row.Season] = { totalPoints: 0, games: 0 };
+                    }
+                    seasonData[row.Season].totalPoints += (row.HomeScore + row.AwayScore);
+                    seasonData[row.Season].games++;
+                }
+            });
+
+            const chartData = Object.entries(seasonData)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([season, data]) => ({
+                    season,
+                    avgPoints: data.totalPoints / data.games
+                }));
+
+            const ctx = document.getElementById('scoringTrendChart');
+            if (!ctx || chartData.length === 0) return;
+            
+            if (charts.scoringTrendChart) charts.scoringTrendChart.destroy();
+
+            charts.scoringTrendChart = new Chart(ctx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: chartData.map(d => d.season),
+                    datasets: [{
+                        label: 'Average Points Per Game',
+                        data: chartData.map(d => d.avgPoints),
+                        borderColor: '#e17055',
+                        backgroundColor: 'rgba(225, 112, 85, 0.1)',
+                        borderWidth: 3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Average Total Points' } },
+                        x: { title: { display: true, text: 'Season' } }
+                    }
+                }
+            });
         }
 
         // Update season distribution chart
