@@ -418,6 +418,7 @@
 
       updateSpreadDistChart(data);
       updateHomeAwayATSChart(homeATS, awayATS, pushes);
+      updateATSSeasonChart(data);
     }
 
     function updateSpreadDistChart(data){
@@ -433,6 +434,124 @@
     function updateHomeAwayATSChart(homeATS, awayATS, pushes){
       const ctx=document.getElementById('homeAwayATSChart'); if(!ctx) return; destroy('homeAwayATSChart');
       charts.homeAwayATSChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Home ATS Wins','Away ATS Wins','Pushes'], datasets:[{ data:[homeATS,awayATS,pushes], backgroundColor:['#00b894','#ff6b35','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
+    }
+
+    function updateATSSeasonChart(data){
+      const seasonBuckets = {};
+      data.forEach(r => {
+        if (!r.Season || r.HomeScore==null || r.AwayScore==null || r.Spread==null) return;
+        seasonBuckets[r.Season] ||= { homeWins:0, awayWins:0 };
+        const margin = (r.HomeScore||0) - (r.AwayScore||0);
+        const atsResult = margin + (r.Spread||0);
+        if (Math.abs(atsResult) < 0.5) return;
+        if (atsResult > 0) seasonBuckets[r.Season].homeWins++;
+        else seasonBuckets[r.Season].awayWins++;
+      });
+
+      const seasons = Object.keys(seasonBuckets).sort((a,b)=>a-b);
+      const ctx = document.getElementById('atsSeasonChart');
+      destroy('atsSeasonChart');
+      if (!ctx || !seasons.length) return;
+
+      const homeData = seasons.map(season => seasonBuckets[season].homeWins);
+      const awayData = seasons.map(season => seasonBuckets[season].awayWins);
+
+      charts.atsSeasonChart = new Chart(ctx.getContext('2d'), {
+        type:'bar',
+        data:{
+          labels:seasons,
+          datasets:[
+            { label:'Home Covers', data:homeData, backgroundColor:'rgba(0,184,148,0.8)', borderColor:'#00b894', borderWidth:2 },
+            { label:'Away Covers', data:awayData, backgroundColor:'rgba(255,107,53,0.8)', borderColor:'#ff6b35', borderWidth:2 }
+          ]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          scales:{
+            x:{ stacked:true },
+            y:{ beginAtZero:true, stacked:true, title:{ display:true, text:'ATS Covers' } }
+          }
+        }
+      });
+    }
+
+    function updateTotalsAnalysis(){
+      const data = filteredData.filter(r=> r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null);
+      const statsEl = document.getElementById('totals-stats');
+      if (!data.length){
+        if (statsEl) statsEl.innerHTML = '<p style="text-align:center">No totals data for current filters</p>';
+        destroy('totalsDistChart');
+        destroy('overUnderChart');
+        return;
+      }
+
+      let overs=0, unders=0, pushes=0;
+      let totalLineSum=0, totalScoreSum=0, diffSum=0;
+      data.forEach(r=>{
+        const totalLine = r.OverUnder || 0;
+        const totalScore = (r.HomeScore||0) + (r.AwayScore||0);
+        const diff = totalScore - totalLine;
+        totalLineSum += totalLine;
+        totalScoreSum += totalScore;
+        diffSum += Math.abs(diff);
+        if (Math.abs(diff) < 0.5) pushes++;
+        else if (diff > 0) overs++;
+        else unders++;
+      });
+
+      const totalGames = overs + unders + pushes;
+      const avgTotalLine = totalLineSum / data.length;
+      const avgActualTotal = totalScoreSum / data.length;
+      const avgMiss = diffSum / data.length;
+
+      statsEl.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Games with Totals</div></div>
+        <div class="stat-card"><div class="stat-number">${totalGames ? (overs/totalGames*100).toFixed(1) : '0.0'}%</div><div class="stat-label">Overs Hit Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${avgTotalLine.toFixed(1)}</div><div class="stat-label">Avg Closing Total</div></div>
+        <div class="stat-card"><div class="stat-number">${avgActualTotal.toFixed(1)}</div><div class="stat-label">Avg Actual Total</div></div>
+        <div class="stat-card"><div class="stat-number">${avgMiss.toFixed(1)}</div><div class="stat-label">Avg Miss vs Line</div></div>`;
+
+      updateTotalsDistChart(data);
+      updateOverUnderChart(overs, unders, pushes);
+    }
+
+    function updateTotalsDistChart(data){
+      const buckets = {'<40':0,'40-49':0,'50-59':0,'60-69':0,'70-79':0,'80+':0};
+      data.forEach(r=>{
+        const total = (r.HomeScore||0) + (r.AwayScore||0);
+        if (total < 40) buckets['<40']++;
+        else if (total < 50) buckets['40-49']++;
+        else if (total < 60) buckets['50-59']++;
+        else if (total < 70) buckets['60-69']++;
+        else if (total < 80) buckets['70-79']++;
+        else buckets['80+']++;
+      });
+
+      const ctx = document.getElementById('totalsDistChart');
+      destroy('totalsDistChart');
+      if (!ctx) return;
+
+      charts.totalsDistChart = new Chart(ctx.getContext('2d'), {
+        type:'bar',
+        data:{
+          labels:Object.keys(buckets),
+          datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'rgba(42,82,152,0.8)', borderColor:'rgba(42,82,152,1)', borderWidth:2 }]
+        },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    function updateOverUnderChart(overs, unders, pushes){
+      const ctx = document.getElementById('overUnderChart');
+      destroy('overUnderChart');
+      if (!ctx) return;
+
+      charts.overUnderChart = new Chart(ctx.getContext('2d'), {
+        type:'doughnut',
+        data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[overs,unders,pushes], backgroundColor:['#ff6b35','#00b894','#ddd'] }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+      });
     }
 
     // ====== Conference Analysis ======
