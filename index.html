@@ -394,7 +394,29 @@
     // ====== Spread Analysis ======
     function updateSpreadAnalysis(){
       const data=filteredData.filter(r=>r.Spread!=null && r.HomeScore!=null && r.AwayScore!=null);
-      if(!data.length){ document.getElementById('spread-stats').innerHTML='<p style="text-align:center">No spread data for current filters</p>'; return; }
+      if(!data.length){
+        document.getElementById('spread-stats').innerHTML='<p style="text-align:center">No spread data for current filters</p>';
+        destroy('spreadDistChart');
+        destroy('homeAwayATSChart');
+        destroy('atsSeasonChart');
+
+        const spreadCanvas=document.getElementById('spreadDistChart');
+        if(spreadCanvas){
+          const ctx=spreadCanvas.getContext('2d');
+          if(ctx) ctx.clearRect(0,0,spreadCanvas.width,spreadCanvas.height);
+        }
+        const homeAwayCanvas=document.getElementById('homeAwayATSChart');
+        if(homeAwayCanvas){
+          const ctx=homeAwayCanvas.getContext('2d');
+          if(ctx) ctx.clearRect(0,0,homeAwayCanvas.width,homeAwayCanvas.height);
+        }
+        const atsSeasonCanvas=document.getElementById('atsSeasonChart');
+        if(atsSeasonCanvas){
+          const ctx=atsSeasonCanvas.getContext('2d');
+          if(ctx) ctx.clearRect(0,0,atsSeasonCanvas.width,atsSeasonCanvas.height);
+        }
+        return;
+      }
 
       let homeATS=0, awayATS=0, pushes=0;
       data.forEach(r=>{
