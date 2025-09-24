@@ -67,7 +67,7 @@
 </head>
 <body>
   <div class="header">
-    <h1>🏈 NCAAF Betting Analysis Dashboard</h1>
+    <h1>🏈 2025 NCAAF Betting Analysis Dashboard</h1>
     <p>Professional-Grade College Football Betting Analytics</p>
     <div class="pro-badge">🔥 PRO EDITION - Sharp Money Detection & EV Analysis</div>
   </div>
@@ -81,11 +81,12 @@
       <button class="tab" onclick="showTab('spreads')">📈 Spreads</button>
       <button class="tab" onclick="showTab('totals')">🎯 Totals</button>
       <button class="tab" onclick="showTab('teams')">🏟️ Team Analyzer</button>
+      <button class="tab" onclick="showTab('historical')">📚 Historical Data</button>
     </div>
 
     <div id="overview" class="tab-content active">
       <div class="pro-insight">
-        <strong>🔥 Pro Insights:</strong> This dashboard uses advanced algorithms to detect sharp money, calculate expected value, and identify market inefficiencies in college football betting.
+        <strong>🔥 Pro Insights:</strong> Locked on the 2025 season with live sharp money detection, EV calculations, and market inefficiency alerts for college football betting.
       </div>
       <div id="overview-stats" class="stats-grid">
         <div class="stat-card"><div class="stat-number">2,100</div><div class="stat-label">Total Games</div></div>
@@ -408,6 +409,67 @@
         </div>
       </div>
     </div>
+    <div id="historical" class="tab-content">
+      <div class="section">
+        <div class="pro-insight"><strong>📚 Historical View:</strong> Explore every season before 2025 without leaving the live dashboard.</div>
+      </div>
+      <div class="section filters-section">
+        <h2>Historical Filters</h2>
+        <div class="filters-grid">
+          <label>Season
+            <select id="historical-season">
+              <option value="">All Historical Seasons</option>
+            </select>
+          </label>
+          <label>Conference
+            <select id="historical-conf">
+              <option value="">All Conferences</option>
+            </select>
+          </label>
+          <label>Book
+            <select id="historical-book">
+              <option value="">All Books</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="section">
+        <div class="table-header">
+          <h2>📚 Historical Games</h2>
+          <div class="table-actions">
+            <span id="historicalGamesCount" class="games-count">Loading historical games…</span>
+          </div>
+        </div>
+        <div class="table-container">
+          <table id="historicalTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Away</th>
+                <th>Home</th>
+                <th>Conferences</th>
+                <th style="text-align:right">Spread</th>
+                <th style="text-align:right">Total</th>
+                <th>Book</th>
+              </tr>
+            </thead>
+            <tbody id="historical-tbody">
+              <tr class="empty-row"><td colspan="7">Loading historical games…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="two-column">
+        <div class="chart-container">
+          <div class="chart-title">Season Volume</div>
+          <div class="chart-wrapper"><canvas id="historicalSeasonChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Sportsbook Coverage</div>
+          <div class="chart-wrapper"><canvas id="historicalProviderChart"></canvas></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div style="background:rgba(255,255,255,.1); color:#fff; text-align:center; padding:20px; margin-top:30px; border-radius:15px;">
@@ -445,6 +507,7 @@ function formatPct(n) {
 
 let ALL_GAMES = [];
 let STATS = null;
+const CURRENT_SEASON = '2025';
 
 const overviewState = {
   charts: {},
@@ -475,7 +538,8 @@ const filterScopes = {
   keyNumbers: { season: 'key-season', conference: 'key-conf', book: 'key-book' },
   spreads: { season: 'spreads-season', conference: 'spreads-conf', book: 'spreads-book' },
   totals: { season: 'totals-season', conference: 'totals-conf', book: 'totals-book' },
-  teams: { season: 'teams-season', conference: 'teams-conf', book: 'teams-book' }
+  teams: { season: 'teams-season', conference: 'teams-conf', book: 'teams-book' },
+  historical: { season: 'historical-season', conference: 'historical-conf', book: 'historical-book' }
 };
 
 function initializeFilters(stats) {
@@ -536,15 +600,15 @@ function formatGameDate(value) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function updateGamesCount(displayed, filteredTotal, truncated) {
-  const el = document.getElementById('gamesCount');
+function updateGamesCount(displayed, filteredTotal, truncated, elementId = 'gamesCount', overallCount = ALL_GAMES.length) {
+  const el = elementId ? document.getElementById(elementId) : null;
   if (!el) return;
   if (!filteredTotal) {
     el.textContent = 'No games match the current filters';
     return;
   }
   const formatter = new Intl.NumberFormat();
-  const overall = ALL_GAMES.length;
+  const overall = Number.isFinite(overallCount) ? overallCount : ALL_GAMES.length;
   const filteredLabel = filteredTotal === overall ? '' : 'filtered';
   const labelSuffix = filteredLabel ? ` ${filteredLabel}` : '';
   let text;
@@ -560,14 +624,16 @@ function updateGamesCount(displayed, filteredTotal, truncated) {
   el.textContent = text;
 }
 
-function populateSelectControl(select, values, placeholder) {
+function populateSelectControl(select, values, placeholder, includeBlank = true) {
   if (!select) return;
   const previous = select.value;
   select.innerHTML = '';
-  const defaultOption = document.createElement('option');
-  defaultOption.value = '';
-  defaultOption.textContent = placeholder;
-  select.appendChild(defaultOption);
+  if (includeBlank) {
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = placeholder;
+    select.appendChild(defaultOption);
+  }
   values.forEach(value => {
     if (value === undefined || value === null || value === '') return;
     const option = document.createElement('option');
@@ -577,11 +643,17 @@ function populateSelectControl(select, values, placeholder) {
   });
   if (previous && Array.from(select.options).some(opt => opt.value === previous)) {
     select.value = previous;
+  } else if (!includeBlank && values.length) {
+    select.value = String(values[0]);
   }
 }
 
 function populateAllFilters() {
-  const seasons = (STATS?.seasons || []).slice().sort((a, b) => Number(b) - Number(a));
+  const rawSeasons = Array.isArray(STATS?.seasons) ? STATS.seasons : [];
+  const seasons = rawSeasons.map(season => String(season)).filter(Boolean);
+  if (CURRENT_SEASON) seasons.unshift(String(CURRENT_SEASON));
+  const uniqueSeasons = Array.from(new Set(seasons));
+  const historicalSeasons = uniqueSeasons.filter(season => season !== String(CURRENT_SEASON));
   const conferences = (STATS?.conferences || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
   const books = (STATS?.sportsbooks || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
 
@@ -590,7 +662,17 @@ function populateAllFilters() {
     const conferenceSelect = document.getElementById(ids.conference);
     const bookSelect = document.getElementById(ids.book);
 
-    populateSelectControl(seasonSelect, seasons, 'All Seasons');
+    const isHistorical = scope === 'historical';
+    const seasonValues = isHistorical ? historicalSeasons : (CURRENT_SEASON ? [String(CURRENT_SEASON)] : uniqueSeasons);
+    const seasonPlaceholder = isHistorical ? 'All Historical Seasons' : `${CURRENT_SEASON} Season`;
+
+    if (seasonSelect) {
+      populateSelectControl(seasonSelect, seasonValues, seasonPlaceholder, isHistorical);
+      if (!isHistorical && seasonValues.length) {
+        seasonSelect.value = seasonValues[0];
+      }
+    }
+
     populateSelectControl(conferenceSelect, conferences, 'All Conferences');
     populateSelectControl(bookSelect, books, 'All Books');
 
@@ -609,26 +691,46 @@ function filterGamesForScope(scope) {
   const ids = filterScopes[scope];
   if (!ids) return [...ALL_GAMES];
 
-  const seasonValue = document.getElementById(ids.season)?.value || '';
+  const seasonElement = document.getElementById(ids.season);
   const conferenceValue = document.getElementById(ids.conference)?.value || '';
   const bookValue = document.getElementById(ids.book)?.value || '';
+  const isHistorical = scope === 'historical';
+
+  let seasonValue = seasonElement?.value || '';
+  if (!isHistorical) {
+    seasonValue = seasonValue || String(CURRENT_SEASON || '');
+  }
 
   return ALL_GAMES.filter(game => {
-    if (seasonValue && String(game.season) !== String(seasonValue)) return false;
+    const season = game?.season !== undefined && game?.season !== null ? String(game.season) : '';
+    if (!isHistorical && CURRENT_SEASON && season && season !== String(CURRENT_SEASON)) return false;
+    if (isHistorical && !seasonValue && season === String(CURRENT_SEASON)) return false;
+    if (seasonValue && season !== String(seasonValue)) return false;
     if (conferenceValue && game.homeConference !== conferenceValue && game.awayConference !== conferenceValue) return false;
     if (bookValue && (game.lineProvider || '') !== bookValue) return false;
     return true;
   });
 }
 
-function renderTable(filteredRows) {
-  const tbody = document.getElementById('games-tbody');
+function renderTable(filteredRows, config = {}) {
+  const {
+    tbodyId = 'games-tbody',
+    countId = 'gamesCount',
+    emptyMessage = 'No games match the current filters.',
+    noDataMessage = 'No games match the current filters.',
+    overallCount = null
+  } = config;
+
+  const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
 
   const rows = Array.isArray(filteredRows) ? filteredRows : filterGamesForScope('overview');
   if (!rows.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No games match the current filters.</td></tr>';
-    updateGamesCount(0, 0, false);
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${emptyMessage}</td></tr>`;
+    if (countId) {
+      const countEl = document.getElementById(countId);
+      if (countEl) countEl.textContent = noDataMessage;
+    }
     return;
   }
 
@@ -665,7 +767,19 @@ function renderTable(filteredRows) {
   }).join('');
 
   tbody.innerHTML = html;
-  updateGamesCount(limited.length, rows.length, rows.length > limit);
+
+  let resolvedOverall;
+  if (overallCount !== null && overallCount !== undefined) {
+    resolvedOverall = overallCount;
+  } else if (CURRENT_SEASON) {
+    const targetSeason = String(CURRENT_SEASON);
+    const matches = ALL_GAMES.filter(game => String(game?.season ?? '') === targetSeason);
+    resolvedOverall = matches.length || ALL_GAMES.length;
+  } else {
+    resolvedOverall = ALL_GAMES.length;
+  }
+
+  updateGamesCount(limited.length, rows.length, rows.length > limit, countId, resolvedOverall);
 }
 
 function exportCSV() {
@@ -1591,6 +1705,104 @@ function renderTeamTab() {
   renderTeamInsights(filtered);
 }
 
+function renderHistoricalTab() {
+  const currentSeasonKey = CURRENT_SEASON ? String(CURRENT_SEASON) : '';
+  const filtered = filterGamesForScope('historical');
+  const historicalUniverse = ALL_GAMES.filter(game => {
+    const seasonValue = game?.season !== undefined && game?.season !== null ? String(game.season) : '';
+    return !currentSeasonKey || seasonValue !== currentSeasonKey;
+  });
+  const overallCount = historicalUniverse.length;
+
+  renderTable(filtered, {
+    tbodyId: 'historical-tbody',
+    countId: 'historicalGamesCount',
+    emptyMessage: overallCount ? 'No historical games match the current filters.' : 'No historical data available.',
+    noDataMessage: overallCount ? 'No historical games match the current filters.' : 'No historical data available.',
+    overallCount
+  });
+
+  renderHistoricalCharts(filtered, historicalUniverse);
+}
+
+function renderHistoricalCharts(games, universe = []) {
+  const currentSeasonKey = CURRENT_SEASON ? String(CURRENT_SEASON) : '';
+  const dataSource = games.length ? games : universe;
+
+  const seasonCounts = dataSource.reduce((acc, game) => {
+    const seasonValue = game?.season !== undefined && game?.season !== null ? String(game.season) : 'Unknown';
+    if (seasonValue === currentSeasonKey) return acc;
+    acc[seasonValue] = (acc[seasonValue] || 0) + 1;
+    return acc;
+  }, {});
+
+  const seasonLabels = Object.keys(seasonCounts).sort((a, b) => {
+    const numA = Number(a);
+    const numB = Number(b);
+    const aFinite = Number.isFinite(numA);
+    const bFinite = Number.isFinite(numB);
+    if (aFinite && bFinite) return numA - numB;
+    if (aFinite) return -1;
+    if (bFinite) return 1;
+    return String(a).localeCompare(String(b));
+  });
+  const seasonValues = seasonLabels.map(label => seasonCounts[label]);
+  if (!seasonLabels.length) {
+    seasonLabels.push('No Data');
+    seasonValues.push(0);
+  }
+
+  ensureChart('historicalSeason', 'historicalSeasonChart', {
+    type: 'bar',
+    data: {
+      labels: seasonLabels,
+      datasets: [{
+        label: 'Games',
+        data: seasonValues,
+        backgroundColor: chartPalette.neutral,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const bookCounts = dataSource.reduce((acc, game) => {
+    const key = game.lineProvider || 'Unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const bookLabels = Object.keys(bookCounts).sort((a, b) => bookCounts[b] - bookCounts[a]);
+  const bookValues = bookLabels.map(label => bookCounts[label]);
+  if (!bookLabels.length) {
+    bookLabels.push('No Data');
+    bookValues.push(0);
+  }
+
+  ensureChart('historicalBooks', 'historicalProviderChart', {
+    type: 'bar',
+    data: {
+      labels: bookLabels,
+      datasets: [{
+        label: 'Listings',
+        data: bookValues,
+        backgroundColor: chartPalette.neutral,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
 function renderAllTabs() {
   renderOverviewTab();
   renderSharpTab();
@@ -1599,6 +1811,7 @@ function renderAllTabs() {
   renderSpreadsTab();
   renderTotalsTab();
   renderTeamTab();
+  renderHistoricalTab();
 }
 
 function renderEvCharts(games) {
