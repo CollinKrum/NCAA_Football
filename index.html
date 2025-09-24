@@ -35,6 +35,33 @@
     .ev-negative { color:#e17055; font-weight:bold }
     .key-number { background:#e17055; color:#fff; padding:2px 8px; border-radius:4px; font-weight:bold }
     .market-inefficiency { background:linear-gradient(90deg, #fdcb6e, #e17055); color:#fff; padding:8px; border-radius:8px; margin:8px 0 }
+    .filters-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px; margin-top:12px }
+    .filters-grid label { display:flex; flex-direction:column; gap:6px; font-size:0.8em; font-weight:600; color:#444; text-transform:uppercase; letter-spacing:0.05em }
+    .filters-grid select { padding:10px; border-radius:8px; border:1px solid rgba(0,0,0,.12); font-size:0.95em; background:#fff; transition:border-color .2s, box-shadow .2s }
+    .filters-grid select:focus { outline:none; border-color:#ff6b35; box-shadow:0 0 0 3px rgba(255,107,53,.25) }
+    .table-header { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap }
+    .table-actions { display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+    .btn-export { background:linear-gradient(90deg, #2ecc71, #27ae60); border:none; color:#fff; padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:600; box-shadow:0 4px 8px rgba(0,0,0,.15); transition:transform .2s ease, box-shadow .2s ease }
+    .btn-export:hover { transform:translateY(-1px); box-shadow:0 6px 12px rgba(0,0,0,.2) }
+    .btn-export:active { transform:translateY(0); box-shadow:0 3px 6px rgba(0,0,0,.15) }
+    .games-count { font-size:0.9em; color:#555 }
+    .table-container { margin-top:12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); overflow:hidden; box-shadow:0 6px 12px rgba(0,0,0,.08); background:#fff }
+    #gamesTable { width:100%; border-collapse:collapse; font-size:0.92em }
+    #gamesTable thead { background:linear-gradient(90deg, rgba(255,107,53,.18), rgba(247,147,30,.18)); color:#333; text-transform:uppercase; letter-spacing:0.05em; font-size:0.78em }
+    #gamesTable th, #gamesTable td { padding:10px 12px; text-align:left; border-bottom:1px solid rgba(0,0,0,.05); white-space:nowrap }
+    #gamesTable td:nth-child(4) { white-space:normal }
+    #gamesTable tbody tr:nth-child(even) { background:rgba(0,0,0,.03) }
+    #gamesTable tbody tr:hover { background:rgba(255,107,53,.1) }
+    .empty-row td { text-align:center; color:#777; padding:26px 12px; font-style:italic }
+    .filters-section { background:rgba(255,255,255,.9); border-radius:14px; padding:16px 20px; box-shadow:0 6px 12px rgba(0,0,0,.08); margin-bottom:20px }
+    .filters-section h2 { font-size:1.1em; font-weight:600; margin-bottom:8px; color:#333 }
+    .chart-empty { text-align:center; color:#777; font-style:italic; padding:40px 10px }
+    .team-select-wrap { max-width:280px }
+    .team-summary-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:16px; margin:18px 0 }
+    .team-summary-card { background:linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.85)); border-radius:12px; padding:16px; box-shadow:0 4px 10px rgba(0,0,0,.1); }
+    .team-summary-card h3 { font-size:0.85em; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-bottom:6px }
+    .team-summary-card p { font-size:1.4em; font-weight:700; color:#ff6b35 }
+    .team-summary-card small { display:block; margin-top:6px; color:#666; font-size:0.75em }
     @media (max-width: 900px) { .two-column{ grid-template-columns:1fr } .header h1{ font-size:1.8em } }
   </style>
 </head>
@@ -53,6 +80,7 @@
       <button class="tab" onclick="showTab('key-numbers')">🎯 Key Numbers</button>
       <button class="tab" onclick="showTab('spreads')">📈 Spreads</button>
       <button class="tab" onclick="showTab('totals')">🎯 Totals</button>
+      <button class="tab" onclick="showTab('teams')">🏟️ Team Analyzer</button>
     </div>
 
     <div id="overview" class="tab-content active">
@@ -65,6 +93,53 @@
         <div class="stat-card"><div class="stat-number ev-positive">+2.34%</div><div class="stat-label">Average EV</div></div>
         <div class="stat-card"><div class="stat-number">28.5%</div><div class="stat-label">Sharp Action Detected</div></div>
       </div>
+      <div class="section filters-section">
+        <h2>Overview Filters</h2>
+        <div class="filters-grid">
+          <label>Season
+            <select id="overview-season">
+              <option value="">All Seasons</option>
+            </select>
+          </label>
+          <label>Conference
+            <select id="overview-conf">
+              <option value="">All Conferences</option>
+            </select>
+          </label>
+          <label>Book
+            <select id="overview-book">
+              <option value="">All Books</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="section">
+        <div class="table-header">
+          <h2>📅 Games</h2>
+          <div class="table-actions">
+            <span id="gamesCount" class="games-count">Loading games…</span>
+            <button id="btn-export" type="button" class="btn-export">⬇️ Export CSV</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table id="gamesTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Away</th>
+                <th>Home</th>
+                <th>Conferences</th>
+                <th style="text-align:right">Spread</th>
+                <th style="text-align:right">Total</th>
+                <th>Book</th>
+              </tr>
+            </thead>
+            <tbody id="games-tbody">
+              <tr class="empty-row"><td colspan="7">Loading games…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div class="two-column">
         <div class="chart-container">
           <div class="chart-title">📈 Games by Season</div>
@@ -75,72 +150,262 @@
           <div class="chart-wrapper"><canvas id="providerChart"></canvas></div>
         </div>
       </div>
+      <div class="section" id="moneyline-section">
+        <h2>💵 Moneyline Snapshot</h2>
+        <div id="moneyline-cards" class="team-summary-grid"></div>
+        <div class="chart-container">
+          <div class="chart-title">Moneyline ROI by Side</div>
+          <div class="chart-wrapper"><canvas id="moneylineChart"></canvas></div>
+        </div>
+      </div>
     </div>
 
     <div id="sharp" class="tab-content">
       <div class="section">
         <h2>⚡ Sharp Money Analysis</h2>
-        <div class="pro-insight"><strong>Professional Insight:</strong> Sharp money refers to bets placed by professional bettors. We detect sharp action through reverse line movement, steam moves, and bet/money percentage discrepancies.</div>
-        <div class="sharp-alert">🔥 42 High-Confidence Sharp Plays Detected | 18 Reverse Line Moves | 7 Steam Moves</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number">28.5%</div><div class="stat-label">Sharp Action Rate</div></div>
-        <div class="stat-card"><div class="stat-number">8.6%</div><div class="stat-label">Reverse Line Moves</div></div>
-        <div class="stat-card"><div class="stat-number">3.3%</div><div class="stat-label">Steam Moves</div></div>
-        <div class="stat-card"><div class="stat-number ev-positive">+4.12%</div><div class="stat-label">Avg Sharp EV</div></div>
+        <div class="pro-insight"><strong>Professional Insight:</strong> Track spread and total movement by conference to see where the market is reacting most aggressively.</div>
+        <div class="sharp-alert">🔥 Big swings often signal sharp action. Use the charts below to spot notable steam and reverse moves.</div>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>Sharp Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="sharp-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="sharp-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="sharp-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="two-column">
+          <div class="chart-container">
+            <div class="chart-title">Spread Movement by Conference</div>
+            <div class="chart-wrapper"><canvas id="lineMovementChart"></canvas></div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Total Movement by Conference</div>
+            <div class="chart-wrapper"><canvas id="totalMovementChart"></canvas></div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div id="ev" class="tab-content">
       <div class="section">
         <h2>💰 Expected Value Analysis</h2>
-        <div class="pro-insight"><strong>EV Calculation:</strong> Expected Value = (True Win Probability × (Odds - 1)) - (Loss Probability × 1). Positive EV indicates profitable long-term betting opportunities.</div>
-        <div class="market-inefficiency">💎 127 Positive EV Opportunities Found | 23 High-Value Plays (>5% EV)</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number ev-positive">+6.78%</div><div class="stat-label">Avg Positive EV</div></div>
-        <div class="stat-card"><div class="stat-number ev-negative">-3.45%</div><div class="stat-label">Avg Negative EV</div></div>
-        <div class="stat-card"><div class="stat-number ev-positive">+12.34%</div><div class="stat-label">Best EV Found</div></div>
-        <div class="stat-card"><div class="stat-number">84.2%</div><div class="stat-label">Market Efficiency</div></div>
+        <div class="pro-insight"><strong>EV Check:</strong> Compare ATS and totals outcomes to evaluate pricing accuracy for the current filters.</div>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>EV Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="ev-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="ev-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="ev-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="two-column">
+          <div class="chart-container">
+            <div class="chart-title">Home vs Away ATS Outcomes</div>
+            <div class="chart-wrapper"><canvas id="atsSplitChart"></canvas></div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Totals Outcomes</div>
+            <div class="chart-wrapper"><canvas id="totalsSplitChart"></canvas></div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Conference ATS Performance</div>
+          <div class="chart-wrapper"><canvas id="conferenceAtsChart"></canvas></div>
+        </div>
       </div>
     </div>
 
     <div id="key-numbers" class="tab-content">
       <div class="section">
         <h2>🎯 Key Numbers Analysis</h2>
-        <div class="pro-insight"><strong>Key Numbers:</strong> In football, games frequently land on 3, 7, 10, and 14-point margins. Understanding key number frequency helps identify betting value and avoid poor pricing.</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number">31.8%</div><div class="stat-label">Games on Key Numbers</div></div>
-        <div class="stat-card"><div class="stat-number key-number">7</div><div class="stat-label">Most Common Margin</div></div>
-        <div class="stat-card"><div class="stat-number">668</div><div class="stat-label">Key Number Results</div></div>
-        <div class="stat-card"><div class="stat-number ev-positive">+1.67%</div><div class="stat-label">Avg Key Number EV</div></div>
+        <div class="pro-insight"><strong>Key Numbers:</strong> The chart highlights where margins most frequently land—watch 3, 7, 10, and 14.</div>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>Key Numbers Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="key-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="key-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="key-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Margin Distribution</div>
+          <div class="chart-wrapper"><canvas id="marginChart"></canvas></div>
+        </div>
       </div>
     </div>
 
     <div id="spreads" class="tab-content">
       <div class="section">
         <h2>📈 Point Spread Analysis</h2>
-        <div class="pro-insight"><strong>Key Insights:</strong> Point spreads reflect the expected margin of victory. Analyzing spread performance helps identify betting value and market inefficiencies.</div>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number">52.3%</div><div class="stat-label">Home ATS Win Rate</div></div>
-        <div class="stat-card"><div class="stat-number">47.7%</div><div class="stat-label">Away ATS Win Rate</div></div>
-        <div class="stat-card"><div class="stat-number">8.4</div><div class="stat-label">Average Spread</div></div>
-        <div class="stat-card"><div class="stat-number">14.7</div><div class="stat-label">Average Margin</div></div>
+        <div class="pro-insight"><strong>Spread Lenses:</strong> Review how spreads trend over time and which conferences produce the strongest favorites.</div>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>Spread Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="spreads-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="spreads-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="spreads-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="two-column">
+          <div class="chart-container">
+            <div class="chart-title">Average Spread by Season</div>
+            <div class="chart-wrapper"><canvas id="avgSpreadSeasonChart"></canvas></div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Top Favorite Conferences</div>
+            <div class="chart-wrapper"><canvas id="confSpreadChart"></canvas></div>
+          </div>
+        </div>
       </div>
     </div>
 
     <div id="totals" class="tab-content">
       <div class="section">
         <h2>🎯 Over/Under Analysis</h2>
-        <div class="pro-insight"><strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities.</div>
+        <div class="pro-insight"><strong>Totals Trends:</strong> Compare posted totals to actual scoring to uncover over/under edges.</div>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>Totals Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="totals-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="totals-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="totals-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="two-column">
+          <div class="chart-container">
+            <div class="chart-title">Betting Total vs Actual Points</div>
+            <div class="chart-wrapper"><canvas id="totalsTrendChart"></canvas></div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Conference Over/Under Rates</div>
+            <div class="chart-wrapper"><canvas id="confTotalsChart"></canvas></div>
+          </div>
+        </div>
       </div>
-      <div class="stats-grid">
-        <div class="stat-card"><div class="stat-number">49.2%</div><div class="stat-label">Over Rate</div></div>
-        <div class="stat-card"><div class="stat-number">50.8%</div><div class="stat-label">Under Rate</div></div>
-        <div class="stat-card"><div class="stat-number">54.2</div><div class="stat-label">Avg Betting Total</div></div>
-        <div class="stat-card"><div class="stat-number">53.8</div><div class="stat-label">Avg Actual Total</div></div>
+    </div>
+
+    <div id="teams" class="tab-content">
+      <div class="section">
+        <h2>🏟️ Team Analyzer</h2>
+        <p style="margin-bottom:12px; color:#555">Dial in on a single team to review spread, total, and moneyline performance with the current filters.</p>
+        <div class="filters-section" style="margin-top:16px;">
+          <h2>Team Filters</h2>
+          <div class="filters-grid">
+            <label>Season
+              <select id="teams-season">
+                <option value="">All Seasons</option>
+              </select>
+            </label>
+            <label>Conference
+              <select id="teams-conf">
+                <option value="">All Conferences</option>
+              </select>
+            </label>
+            <label>Book
+              <select id="teams-book">
+                <option value="">All Books</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="filters-grid team-select-wrap">
+          <label>Team
+            <select id="teamSelect">
+              <option value="">Select Team</option>
+            </select>
+          </label>
+        </div>
+        <div id="team-summary" class="team-summary-grid"></div>
+        <div class="two-column">
+          <div class="chart-container">
+            <div class="chart-title">ATS Performance</div>
+            <div class="chart-wrapper"><canvas id="teamAtsChart"></canvas></div>
+          </div>
+          <div class="chart-container">
+            <div class="chart-title">Totals Performance</div>
+            <div class="chart-wrapper"><canvas id="teamTotalsChart"></canvas></div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Moneyline Results</div>
+          <div class="chart-wrapper"><canvas id="teamMoneylineChart"></canvas></div>
+        </div>
+        <div class="table-container">
+          <table id="teamGamesTable">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Opponent</th>
+                <th>Result</th>
+                <th>ATS</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="teamGamesTbody">
+              <tr class="empty-row"><td colspan="5">Select a team to see recent results.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -150,268 +415,1334 @@
     <p>Built with Advanced Analytics | Optimized for Professional Bettors</p>
   </div>
 
-  <script>
-    // Dashboard API Integration
-    class NCAAFDashboard {
-      constructor() {
-        this.baseURL = window.location.hostname === 'localhost' 
-          ? 'http://localhost:3000/api' 
-          : '/api'; // Use relative path in production
-        this.games = [];
-        this.stats = {};
-        this.charts = {};
-      }
+  <!-- … keep everything above unchanged … -->
 
-      async init() {
-        try {
-          console.log('🚀 Initializing dashboard...');
-          await this.loadStats();
-          await this.loadGames();
-          this.updateDashboard();
-          this.hideLoading();
-        } catch (error) {
-          console.error('Error initializing dashboard:', error);
-          this.fallbackToStaticData();
-        }
-      }
+ <script>
+/* Tabs */
+function showTab(id) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector(`button.tab[onclick="showTab('${id}')"]`)?.classList.add('active');
+  document.getElementById(id)?.classList.add('active');
+}
 
-      async loadStats() {
-        try {
-          const response = await fetch(`${this.baseURL}/stats`);
-          if (!response.ok) throw new Error('Stats API not available');
-          
-          const result = await response.json();
-          if (result.success) {
-            this.stats = result.data;
-            console.log('📊 Stats loaded from API:', this.stats);
-          }
-        } catch (error) {
-          console.log('📊 Using fallback stats');
-          this.stats = {
-            totalGames: 2100,
-            spreadCoverage: '97.8',
-            totalsCoverage: '96.2',
-            seasons: [2021, 2022, 2023, 2024],
-            conferences: ['SEC', 'Big Ten', 'Big 12', 'Pac-12', 'ACC'],
-            sportsbooks: ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars']
-          };
-        }
-      }
+/* Safer fetch -> JSON (helps diagnose HTML error pages) */
+async function getJson(url) {
+  const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch {
+    console.error(`Non-JSON from ${url}:`, text.slice(0, 500));
+    throw new Error(`Expected JSON from ${url} but got HTML/text`);
+  }
+}
 
-      async loadGames(filters = {}) {
-        try {
-          const params = new URLSearchParams(filters);
-          const response = await fetch(`${this.baseURL}/games?${params}`);
-          if (!response.ok) throw new Error('Games API not available');
-          
-          const result = await response.json();
-          if (result.success) {
-            this.games = result.data;
-            console.log(`🏈 Loaded ${result.count} games from API`);
-            return this.games;
-          }
-        } catch (error) {
-          console.log('🏈 Using fallback game data');
-          this.games = this.generateFallbackData();
-          return this.games;
-        }
-      }
+function formatPct(n) {
+  const num = typeof n === 'string' ? parseFloat(n) : n;
+  if (Number.isFinite(num)) return (Math.round(num * 10) / 10).toFixed(1);
+  return '—';
+}
 
-      generateFallbackData() {
-        const seasons = [2021, 2022, 2023, 2024];
-        const teams = ['Alabama', 'Georgia', 'Ohio State', 'Michigan', 'Texas', 'Oklahoma'];
-        const providers = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars'];
-        const games = [];
+let ALL_GAMES = [];
+let STATS = null;
 
-        for (let i = 0; i < 500; i++) {
-          games.push({
-            id: i + 1,
-            season: seasons[Math.floor(Math.random() * seasons.length)],
-            week: Math.floor(Math.random() * 15) + 1,
-            homeTeam: teams[Math.floor(Math.random() * teams.length)],
-            awayTeam: teams[Math.floor(Math.random() * teams.length)],
-            homeScore: Math.floor(Math.random() * 35) + 10,
-            awayScore: Math.floor(Math.random() * 35) + 10,
-            spread: parseFloat((Math.random() * 28 - 14).toFixed(1)),
-            overUnder: parseFloat((Math.random() * 40 + 40).toFixed(1)),
-            lineProvider: providers[Math.floor(Math.random() * providers.length)]
-          });
-        }
-        return games;
-      }
+const overviewState = {
+  charts: {},
+  filtered: [],
+  selectedTeam: ''
+};
 
-      updateDashboard() {
-        this.updateOverviewStats();
-        this.updateCharts();
-      }
+const chartPalette = {
+  primary: 'rgba(255,107,53,0.7)',
+  secondary: 'rgba(46,204,113,0.7)',
+  accent: 'rgba(76,201,240,0.7)',
+  neutral: 'rgba(165,177,194,0.7)',
+  loss: 'rgba(255,71,87,0.75)',
+  over: 'rgba(52,152,219,0.75)',
+  under: 'rgba(255,159,67,0.75)'
+};
 
-      updateOverviewStats() {
-        const avgEV = this.calculateAverageEV();
-        const sharpActionRate = this.calculateSharpActionRate();
+function toNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
 
-        const statsHTML = `
-          <div class="stat-card">
-            <div class="stat-number">${this.stats.totalGames.toLocaleString()}</div>
-            <div class="stat-label">Total Games</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number">${this.stats.spreadCoverage}%</div>
-            <div class="stat-label">Spread Coverage</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number ${avgEV > 0 ? 'ev-positive' : 'ev-negative'}">
-              ${avgEV > 0 ? '+' : ''}${avgEV.toFixed(2)}%
-            </div>
-            <div class="stat-label">Average EV</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-number">${sharpActionRate.toFixed(1)}%</div>
-            <div class="stat-label">Sharp Action Detected</div>
-          </div>
-        `;
+const filterScopes = {
+  overview: { season: 'overview-season', conference: 'overview-conf', book: 'overview-book' },
+  sharp: { season: 'sharp-season', conference: 'sharp-conf', book: 'sharp-book' },
+  ev: { season: 'ev-season', conference: 'ev-conf', book: 'ev-book' },
+  keyNumbers: { season: 'key-season', conference: 'key-conf', book: 'key-book' },
+  spreads: { season: 'spreads-season', conference: 'spreads-conf', book: 'spreads-book' },
+  totals: { season: 'totals-season', conference: 'totals-conf', book: 'totals-book' },
+  teams: { season: 'teams-season', conference: 'teams-conf', book: 'teams-book' }
+};
 
-        document.getElementById('overview-stats').innerHTML = statsHTML;
-      }
+function initializeFilters(stats) {
+  const fallbackSeasons = Array.from(new Set((ALL_GAMES || []).map(g => g.season).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
+  const fallbackConferences = Array.from(new Set((ALL_GAMES || []).flatMap(g => [g.homeConference, g.awayConference]).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+  const fallbackBooks = Array.from(new Set((ALL_GAMES || []).map(g => g.lineProvider).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
 
-      calculateAverageEV() {
-        return Math.random() * 6 - 1; // -1% to +5% EV simulation
-      }
+  STATS = {
+    ...stats,
+    seasons: Array.isArray(stats?.seasons) && stats.seasons.length ? stats.seasons : fallbackSeasons,
+    conferences: Array.isArray(stats?.conferences) && stats.conferences.length ? stats.conferences : fallbackConferences,
+    sportsbooks: Array.isArray(stats?.sportsbooks) && stats.sportsbooks.length ? stats.sportsbooks : fallbackBooks
+  };
 
-      calculateSharpActionRate() {
-        return Math.random() * 20 + 15; // 15-35% sharp action rate
-      }
+  populateAllFilters();
+}
 
-      updateCharts() {
-        this.updateSeasonChart();
-        this.updateProviderChart();
-      }
+function formatSpread(value) {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (Number.isFinite(num)) return num.toFixed(1);
+  return '—';
+}
 
-      updateSeasonChart() {
-        const seasonCounts = {};
-        this.games.forEach(game => {
-          if (game.season) {
-            seasonCounts[game.season] = (seasonCounts[game.season] || 0) + 1;
-          }
-        });
+function formatSignedNumber(value, digits = 1) {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (!Number.isFinite(num)) return '—';
+  return `${num > 0 ? '+' : ''}${num.toFixed(digits)}`;
+}
 
-        const ctx = document.getElementById('seasonChart');
-        if (!ctx) return;
+function formatIsoDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString();
+}
 
-        if (this.charts.season) {
-          this.charts.season.destroy();
-        }
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return '—';
+  return `${(value * 100).toFixed(1)}%`;
+}
 
-        this.charts.season = new Chart(ctx.getContext('2d'), {
-          type: 'bar',
-          data: {
-            labels: Object.keys(seasonCounts).sort(),
-            datasets: [{
-              label: 'Games',
-              data: Object.values(seasonCounts),
-              backgroundColor: 'rgba(255,107,53,.8)',
-              borderColor: 'rgba(255,107,53,1)',
-              borderWidth: 2
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true } }
-          }
-        });
-      }
+function formatUnits(value) {
+  if (!Number.isFinite(value)) return '—';
+  const rounded = value.toFixed(2);
+  return `${value >= 0 ? '+' : ''}${rounded}u`;
+}
 
-      updateProviderChart() {
-        const providerCounts = {};
-        this.games.forEach(game => {
-          if (game.lineProvider) {
-            providerCounts[game.lineProvider] = (providerCounts[game.lineProvider] || 0) + 1;
-          }
-        });
+function americanToDecimal(odds) {
+  const num = typeof odds === 'string' ? parseFloat(odds) : odds;
+  if (!Number.isFinite(num) || num === 0) return null;
+  if (num > 0) return 1 + num / 100;
+  return 1 + 100 / Math.abs(num);
+}
 
-        const sortedProviders = Object.entries(providerCounts)
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 8);
+function formatGameDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
-        const ctx = document.getElementById('providerChart');
-        if (!ctx) return;
+function updateGamesCount(displayed, filteredTotal, truncated) {
+  const el = document.getElementById('gamesCount');
+  if (!el) return;
+  if (!filteredTotal) {
+    el.textContent = 'No games match the current filters';
+    return;
+  }
+  const formatter = new Intl.NumberFormat();
+  const overall = ALL_GAMES.length;
+  const filteredLabel = filteredTotal === overall ? '' : 'filtered';
+  const labelSuffix = filteredLabel ? ` ${filteredLabel}` : '';
+  let text;
+  if (truncated) {
+    text = `Showing ${formatter.format(displayed)} of ${formatter.format(filteredTotal)}${labelSuffix} games`;
+  } else {
+    const noun = filteredTotal === 1 ? 'game' : 'games';
+    text = `${formatter.format(filteredTotal)}${labelSuffix} ${noun}`;
+  }
+  if (filteredTotal !== overall) {
+    text += ` (of ${formatter.format(overall)} total)`;
+  }
+  el.textContent = text;
+}
 
-        if (this.charts.provider) {
-          this.charts.provider.destroy();
-        }
+function populateSelectControl(select, values, placeholder) {
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = '';
+  const defaultOption = document.createElement('option');
+  defaultOption.value = '';
+  defaultOption.textContent = placeholder;
+  select.appendChild(defaultOption);
+  values.forEach(value => {
+    if (value === undefined || value === null || value === '') return;
+    const option = document.createElement('option');
+    option.value = String(value);
+    option.textContent = String(value);
+    select.appendChild(option);
+  });
+  if (previous && Array.from(select.options).some(opt => opt.value === previous)) {
+    select.value = previous;
+  }
+}
 
-        this.charts.provider = new Chart(ctx.getContext('2d'), {
-          type: 'doughnut',
-          data: {
-            labels: sortedProviders.map(([name]) => name),
-            datasets: [{
-              data: sortedProviders.map(([, count]) => count),
-              backgroundColor: ['#ff6b35', '#f7931e', '#2a5298', '#1e3c72', '#00b894', '#00cec9', '#6c5ce7', '#a29bfe']
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
-          }
-        });
-      }
+function populateAllFilters() {
+  const seasons = (STATS?.seasons || []).slice().sort((a, b) => Number(b) - Number(a));
+  const conferences = (STATS?.conferences || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
+  const books = (STATS?.sportsbooks || []).slice().sort((a, b) => String(a).localeCompare(String(b)));
 
-      fallbackToStaticData() {
-        console.log('🔄 Falling back to static data');
-        this.hideLoading();
-        this.updateDashboard();
-        
-        // Show fallback notice
-        const notice = document.createElement('div');
-        notice.className = 'pro-insight';
-        notice.innerHTML = '<strong>📡 API Offline:</strong> Using cached data. Start your backend server for live data.';
-        document.querySelector('.container').insertBefore(notice, document.querySelector('.tabs'));
-      }
+  Object.entries(filterScopes).forEach(([scope, ids]) => {
+    const seasonSelect = document.getElementById(ids.season);
+    const conferenceSelect = document.getElementById(ids.conference);
+    const bookSelect = document.getElementById(ids.book);
 
-      hideLoading() {
-        const loading = document.getElementById('loading');
-        if (loading) {
-          loading.style.display = 'none';
-        }
-      }
-    }
+    populateSelectControl(seasonSelect, seasons, 'All Seasons');
+    populateSelectControl(conferenceSelect, conferences, 'All Conferences');
+    populateSelectControl(bookSelect, books, 'All Books');
 
-    // Tab switching (keep your existing function)
-    function showTab(tabName) {
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.getElementById(tabName).classList.add('active');
-      event.target.classList.add('active');
-    }
-
-    // Initialize dashboard when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-      // Add loading spinner
-      const overview = document.getElementById('overview');
-      const loading = document.createElement('div');
-      loading.id = 'loading';
-      loading.innerHTML = `
-        <div style="text-align:center; color:#fff; padding:40px;">
-          <h2>🏈 Loading NCAAF Pro Data...</h2>
-          <div style="border:4px solid rgba(255,255,255,.3); border-top:4px solid #ff6b35; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:20px auto;"></div>
-          <p>Processing games, betting lines, and market inefficiencies...</p>
-        </div>
-      `;
-      loading.style.cssText = 'position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:1000; background:rgba(30,60,114,0.95); padding:40px; border-radius:15px;';
-      
-      document.body.appendChild(loading);
-      
-      // Initialize dashboard
-      window.dashboard = new NCAAFDashboard();
-      window.dashboard.init();
+    const handler = () => renderAllTabs();
+    [seasonSelect, conferenceSelect, bookSelect].forEach(select => {
+      if (select) select.onchange = handler;
     });
+  });
 
-    // Add CSS animation for spinner
-    const style = document.createElement('style');
-    style.textContent = '@keyframes spin { to { transform: rotate(360deg); } }';
-    document.head.appendChild(style);
-  </script>
+  const exportBtn = document.getElementById('btn-export');
+  if (exportBtn) exportBtn.onclick = exportCSV;
+}
+
+function filterGamesForScope(scope) {
+  if (!Array.isArray(ALL_GAMES)) return [];
+  const ids = filterScopes[scope];
+  if (!ids) return [...ALL_GAMES];
+
+  const seasonValue = document.getElementById(ids.season)?.value || '';
+  const conferenceValue = document.getElementById(ids.conference)?.value || '';
+  const bookValue = document.getElementById(ids.book)?.value || '';
+
+  return ALL_GAMES.filter(game => {
+    if (seasonValue && String(game.season) !== String(seasonValue)) return false;
+    if (conferenceValue && game.homeConference !== conferenceValue && game.awayConference !== conferenceValue) return false;
+    if (bookValue && (game.lineProvider || '') !== bookValue) return false;
+    return true;
+  });
+}
+
+function renderTable(filteredRows) {
+  const tbody = document.getElementById('games-tbody');
+  if (!tbody) return;
+
+  const rows = Array.isArray(filteredRows) ? filteredRows : filterGamesForScope('overview');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">No games match the current filters.</td></tr>';
+    updateGamesCount(0, 0, false);
+    return;
+  }
+
+  const sorted = rows.slice().sort((a, b) => {
+    const dateA = a?.startDate ? new Date(a.startDate).getTime() : 0;
+    const dateB = b?.startDate ? new Date(b.startDate).getTime() : 0;
+    if (dateA && dateB && dateA !== dateB) return dateB - dateA;
+    if (dateB && !dateA) return 1;
+    if (dateA && !dateB) return -1;
+    return (Number(b.week) || 0) - (Number(a.week) || 0);
+  });
+
+  const limit = 200;
+  const limited = sorted.slice(0, limit);
+  const html = limited.map(g => {
+    const date = formatGameDate(g.startDate);
+    const conf = [g.awayConference, g.homeConference].filter(Boolean).join(' @ ') || '—';
+    const spread = formatSpread(g.spread);
+    const total = formatSpread(g.overUnder);
+    const away = g.awayTeam || '—';
+    const home = g.homeTeam || '—';
+    const book = g.lineProvider || '—';
+    return `
+      <tr style="border-top:1px solid #eee">
+        <td style="padding:8px">${date}</td>
+        <td style="padding:8px">${away}</td>
+        <td style="padding:8px">${home}</td>
+        <td style="padding:8px">${conf}</td>
+        <td style="padding:8px; text-align:right">${spread === '—' ? '' : spread}</td>
+        <td style="padding:8px; text-align:right">${total === '—' ? '' : total}</td>
+        <td style="padding:8px">${book}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = html;
+  updateGamesCount(limited.length, rows.length, rows.length > limit);
+}
+
+function exportCSV() {
+  const headers = ['date','season','week','awayTeam','homeTeam','awayConf','homeConf','spread','overUnder','homeScore','awayScore','homeMoneyline','awayMoneyline','book'];
+  const rows = filterGamesForScope('overview');
+
+  const lines = [headers.join(',')].concat(rows.map(g => {
+    const values = [
+      formatIsoDate(g.startDate),
+      g.season ?? '',
+      g.week ?? '',
+      g.awayTeam ?? '',
+      g.homeTeam ?? '',
+      g.awayConference ?? '',
+      g.homeConference ?? '',
+      g.spread ?? '',
+      g.overUnder ?? '',
+      g.homeScore ?? '',
+      g.awayScore ?? '',
+      g.homeMoneyline ?? g.HomeMoneyline ?? '',
+      g.awayMoneyline ?? g.AwayMoneyline ?? '',
+      g.lineProvider ?? ''
+    ];
+    return values.map(value => {
+      const str = String(value ?? '');
+      if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    }).join(',');
+  }));
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ncaaf_filtered.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function ensureChart(key, canvasId, config) {
+  if (!window.Chart) return;
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  overviewState.charts[key]?.destroy?.();
+  overviewState.charts[key] = new Chart(ctx, config);
+}
+
+function renderChartsForOverview(games) {
+  const bySeason = games.reduce((acc, game) => {
+    if (game?.season !== undefined && game?.season !== null && game?.season !== '') {
+      const key = String(game.season);
+      acc[key] = (acc[key] || 0) + 1;
+    }
+    return acc;
+  }, {});
+  const seasonLabels = Object.keys(bySeason).sort((a, b) => Number(a) - Number(b));
+  const seasonValues = seasonLabels.map(label => bySeason[label]);
+  if (!seasonLabels.length) {
+    seasonLabels.push('No Data');
+    seasonValues.push(0);
+  }
+  ensureChart('overviewSeason', 'seasonChart', {
+    type: 'bar',
+    data: {
+      labels: seasonLabels,
+      datasets: [{
+        label: 'Games',
+        data: seasonValues,
+        backgroundColor: chartPalette.primary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const byBook = games.reduce((acc, game) => {
+    const key = game.lineProvider || 'Unknown';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const bookLabels = Object.keys(byBook).sort((a, b) => byBook[b] - byBook[a]);
+  const bookValues = bookLabels.map(label => byBook[label]);
+  if (!bookLabels.length) {
+    bookLabels.push('No Data');
+    bookValues.push(0);
+  }
+  ensureChart('overviewBooks', 'providerChart', {
+    type: 'bar',
+    data: {
+      labels: bookLabels,
+      datasets: [{
+        label: 'Listings',
+        data: bookValues,
+        backgroundColor: chartPalette.accent,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderMoneylineSection(games) {
+  const cards = document.getElementById('moneyline-cards');
+  if (!cards) return;
+
+  const moneyGames = games.filter(g => {
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    const homeOdds = toNumber(g.homeMoneyline ?? g.HomeMoneyline);
+    const awayOdds = toNumber(g.awayMoneyline ?? g.AwayMoneyline);
+    return homeScore !== null && awayScore !== null && homeOdds !== null && awayOdds !== null;
+  });
+
+  if (!moneyGames.length) {
+    cards.innerHTML = '<div class="team-summary-card"><h3>Moneyline</h3><p>—</p><small>No moneyline data for current filters.</small></div>';
+    ensureChart('moneyline', 'moneylineChart', {
+      type: 'bar',
+      data: { labels: ['Home', 'Away'], datasets: [{ label: 'ROI (units)', data: [0, 0], backgroundColor: [chartPalette.secondary, chartPalette.accent], borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+    return;
+  }
+
+  let homeWins = 0;
+  let awayWins = 0;
+  let homeProfit = 0;
+  let awayProfit = 0;
+  let homeOddsSum = 0;
+  let awayOddsSum = 0;
+
+  moneyGames.forEach(g => {
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    const homeOdds = toNumber(g.homeMoneyline ?? g.HomeMoneyline);
+    const awayOdds = toNumber(g.awayMoneyline ?? g.AwayMoneyline);
+    if (homeScore === null || awayScore === null || homeOdds === null || awayOdds === null) return;
+
+    const homeDecimal = americanToDecimal(homeOdds);
+    const awayDecimal = americanToDecimal(awayOdds);
+    if (homeDecimal === null || awayDecimal === null) return;
+
+    const homeWon = homeScore > awayScore;
+    if (homeWon) {
+      homeWins += 1;
+      homeProfit += homeDecimal - 1;
+      awayProfit -= 1;
+    } else {
+      awayWins += 1;
+      awayProfit += awayDecimal - 1;
+      homeProfit -= 1;
+    }
+
+    homeOddsSum += homeOdds;
+    awayOddsSum += awayOdds;
+  });
+
+  const gamesCount = moneyGames.length || 1;
+  const homeRoi = homeProfit / gamesCount;
+  const awayRoi = awayProfit / gamesCount;
+  const avgHomeOdds = homeOddsSum / gamesCount;
+  const avgAwayOdds = awayOddsSum / gamesCount;
+  const homeWinRate = moneyGames.length ? homeWins / moneyGames.length : null;
+  const awayWinRate = moneyGames.length ? awayWins / moneyGames.length : null;
+
+  cards.innerHTML = `
+    <div class="team-summary-card"><h3>Home ML Win %</h3><p>${formatPercent(homeWinRate)}</p><small>Avg odds ${formatSignedNumber(avgHomeOdds, 0)}</small></div>
+    <div class="team-summary-card"><h3>Away ML Win %</h3><p>${formatPercent(awayWinRate)}</p><small>Avg odds ${formatSignedNumber(avgAwayOdds, 0)}</small></div>
+    <div class="team-summary-card"><h3>Home ROI</h3><p>${formatUnits(homeRoi)}</p><small>Per 1u on each home side</small></div>
+    <div class="team-summary-card"><h3>Away ROI</h3><p>${formatUnits(awayRoi)}</p><small>Per 1u on each away side</small></div>
+  `;
+
+  ensureChart('moneyline', 'moneylineChart', {
+    type: 'bar',
+    data: {
+      labels: ['Home', 'Away'],
+      datasets: [{
+        label: 'ROI (units per bet)',
+        data: [homeRoi, awayRoi],
+        backgroundColor: [chartPalette.secondary, chartPalette.accent],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderSharpCharts(games) {
+  const spreadMoves = {};
+  const totalMoves = {};
+
+  games.forEach(g => {
+    const conf = g.homeConference || g.awayConference || 'Unknown';
+    const closingSpread = toNumber(g.spread ?? g.Spread);
+    const openingSpread = toNumber(g.openingSpread ?? g.OpeningSpread);
+    if (closingSpread !== null && openingSpread !== null) {
+      const move = closingSpread - openingSpread;
+      const bucket = spreadMoves[conf] || (spreadMoves[conf] = { total: 0, count: 0 });
+      bucket.total += move;
+      bucket.count += 1;
+    }
+
+    const closingTotal = toNumber(g.overUnder ?? g.OverUnder);
+    const openingTotal = toNumber(g.openingOverUnder ?? g.OpeningOverUnder);
+    if (closingTotal !== null && openingTotal !== null) {
+      const move = closingTotal - openingTotal;
+      const bucket = totalMoves[conf] || (totalMoves[conf] = { total: 0, count: 0 });
+      bucket.total += move;
+      bucket.count += 1;
+    }
+  });
+
+  const spreadData = Object.entries(spreadMoves)
+    .map(([conf, stats]) => ({ conf, avg: stats.total / stats.count }))
+    .filter(item => Number.isFinite(item.avg))
+    .sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg))
+    .slice(0, 10);
+
+  const spreadLabels = spreadData.map(item => item.conf);
+  const spreadValues = spreadData.map(item => Number(item.avg.toFixed(2)));
+  if (!spreadLabels.length) {
+    spreadLabels.push('No Data');
+    spreadValues.push(0);
+  }
+
+  ensureChart('sharpSpread', 'lineMovementChart', {
+    type: 'bar',
+    data: {
+      labels: spreadLabels,
+      datasets: [{
+        label: 'Avg Movement',
+        data: spreadValues,
+        backgroundColor: chartPalette.primary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const totalData = Object.entries(totalMoves)
+    .map(([conf, stats]) => ({ conf, avg: stats.total / stats.count }))
+    .filter(item => Number.isFinite(item.avg))
+    .sort((a, b) => Math.abs(b.avg) - Math.abs(a.avg))
+    .slice(0, 10);
+
+  const totalLabels = totalData.map(item => item.conf);
+  const totalValues = totalData.map(item => Number(item.avg.toFixed(2)));
+  if (!totalLabels.length) {
+    totalLabels.push('No Data');
+    totalValues.push(0);
+  }
+
+  ensureChart('sharpTotals', 'totalMovementChart', {
+    type: 'bar',
+    data: {
+      labels: totalLabels,
+      datasets: [{
+        label: 'Avg Movement',
+        data: totalValues,
+        backgroundColor: chartPalette.accent,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderEvCharts(games) {
+  let homeCover = 0, homeFail = 0, homePush = 0;
+  let overCount = 0, underCount = 0, totalPush = 0;
+  const conferenceStats = {};
+
+  games.forEach(g => {
+    const spread = toNumber(g.spread);
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    const total = toNumber(g.overUnder);
+
+    if (spread !== null && homeScore !== null && awayScore !== null) {
+      const margin = homeScore - awayScore;
+      const diff = margin + spread;
+      if (diff > 0) homeCover += 1;
+      else if (diff < 0) homeFail += 1;
+      else homePush += 1;
+
+      const recordConference = (conf, didCover, wasPush) => {
+        if (!conf) return;
+        const bucket = conferenceStats[conf] || (conferenceStats[conf] = { cover: 0, fail: 0, push: 0 });
+        if (wasPush) bucket.push += 1;
+        else if (didCover) bucket.cover += 1;
+        else bucket.fail += 1;
+      };
+
+      const didHomeCover = diff > 0;
+      const wasPush = diff === 0;
+      recordConference(g.homeConference, didHomeCover, wasPush);
+
+      const awayDiff = (awayScore - homeScore) - spread;
+      const didAwayCover = awayDiff > 0;
+      const awayPush = awayDiff === 0;
+      recordConference(g.awayConference, didAwayCover, awayPush);
+    }
+
+    if (total !== null && homeScore !== null && awayScore !== null) {
+      const points = homeScore + awayScore;
+      if (points > total) overCount += 1;
+      else if (points < total) underCount += 1;
+      else totalPush += 1;
+    }
+  });
+
+  ensureChart('atsSplit', 'atsSplitChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Home Covers', 'Home Fails', 'Push'],
+      datasets: [{
+        data: [homeCover, homeFail, homePush],
+        backgroundColor: [chartPalette.secondary, chartPalette.loss, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  ensureChart('totalsSplit', 'totalsSplitChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Overs', 'Unders', 'Push'],
+      datasets: [{
+        data: [overCount, underCount, totalPush],
+        backgroundColor: [chartPalette.over, chartPalette.under, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  const conferenceData = Object.entries(conferenceStats)
+    .map(([conf, stats]) => {
+      const attempts = stats.cover + stats.fail;
+      const rate = attempts ? stats.cover / attempts : null;
+      return { conf, rate };
+    })
+    .filter(item => item.rate !== null)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 12);
+
+  const confLabels = conferenceData.map(item => item.conf);
+  const confValues = conferenceData.map(item => Number((item.rate * 100).toFixed(1)));
+  if (!confLabels.length) {
+    confLabels.push('No Data');
+    confValues.push(0);
+  }
+
+  ensureChart('confAts', 'conferenceAtsChart', {
+    type: 'bar',
+    data: {
+      labels: confLabels,
+      datasets: [{
+        label: 'Cover %',
+        data: confValues,
+        backgroundColor: chartPalette.primary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { callback: value => `${value}%` } } }
+    }
+  });
+}
+
+function renderKeyNumbersChart(games) {
+  const marginCounts = games.reduce((acc, g) => {
+    const home = toNumber(g.homeScore);
+    const away = toNumber(g.awayScore);
+    if (home === null || away === null) return acc;
+    const margin = Math.abs(home - away);
+    acc[margin] = (acc[margin] || 0) + 1;
+    return acc;
+  }, {});
+
+  const entries = Object.entries(marginCounts)
+    .map(([margin, count]) => ({ margin: Number(margin), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12);
+
+  const labels = entries.map(item => item.margin);
+  const data = entries.map(item => item.count);
+  if (!labels.length) {
+    labels.push('No Data');
+    data.push(0);
+  }
+
+  ensureChart('margin', 'marginChart', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Games',
+        data,
+        backgroundColor: chartPalette.accent,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderSpreadCharts(games) {
+  const seasonSpread = {};
+  const confSpread = {};
+
+  games.forEach(g => {
+    const season = g.season;
+    const spread = toNumber(g.spread);
+    if (season && spread !== null) {
+      const bucket = seasonSpread[season] || (seasonSpread[season] = { total: 0, count: 0 });
+      bucket.total += Math.abs(spread);
+      bucket.count += 1;
+    }
+
+    if (spread !== null) {
+      const record = conf => {
+        if (!conf) return;
+        const bucket = confSpread[conf] || (confSpread[conf] = { total: 0, count: 0 });
+        bucket.total += Math.abs(spread);
+        bucket.count += 1;
+      };
+      record(g.homeConference);
+      record(g.awayConference);
+    }
+  });
+
+  const seasonLabels = Object.keys(seasonSpread).sort((a, b) => Number(a) - Number(b));
+  const seasonValues = seasonLabels.map(season => {
+    const bucket = seasonSpread[season];
+    return Number((bucket.total / bucket.count).toFixed(2));
+  });
+  if (!seasonLabels.length) {
+    seasonLabels.push('No Data');
+    seasonValues.push(0);
+  }
+
+  ensureChart('spreadSeason', 'avgSpreadSeasonChart', {
+    type: 'line',
+    data: {
+      labels: seasonLabels,
+      datasets: [{
+        label: 'Avg Abs Spread',
+        data: seasonValues,
+        borderColor: chartPalette.primary,
+        backgroundColor: chartPalette.primary,
+        tension: 0.3,
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const confEntries = Object.entries(confSpread)
+    .map(([conf, stats]) => ({ conf, avg: stats.total / stats.count }))
+    .filter(item => Number.isFinite(item.avg))
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 12);
+
+  const confLabels = confEntries.map(item => item.conf);
+  const confValues = confEntries.map(item => Number(item.avg.toFixed(2)));
+  if (!confLabels.length) {
+    confLabels.push('No Data');
+    confValues.push(0);
+  }
+
+  ensureChart('spreadConf', 'confSpreadChart', {
+    type: 'bar',
+    data: {
+      labels: confLabels,
+      datasets: [{
+        label: 'Avg Abs Spread',
+        data: confValues,
+        backgroundColor: chartPalette.secondary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+}
+
+function renderTotalsCharts(games) {
+  const seasonTotals = {};
+  const confTotals = {};
+
+  games.forEach(g => {
+    const season = g.season;
+    const total = toNumber(g.overUnder);
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    if (season && total !== null && homeScore !== null && awayScore !== null) {
+      const bucket = seasonTotals[season] || (seasonTotals[season] = { line: 0, actual: 0, count: 0 });
+      bucket.line += total;
+      bucket.actual += homeScore + awayScore;
+      bucket.count += 1;
+    }
+
+    if (total !== null && homeScore !== null && awayScore !== null) {
+      const outcome = (() => {
+        const points = homeScore + awayScore;
+        if (points > total) return 'over';
+        if (points < total) return 'under';
+        return 'push';
+      })();
+      const record = conf => {
+        if (!conf) return;
+        const bucket = confTotals[conf] || (confTotals[conf] = { over: 0, under: 0, push: 0 });
+        bucket[outcome] += 1;
+      };
+      record(g.homeConference);
+      record(g.awayConference);
+    }
+  });
+
+  const seasonLabels = Object.keys(seasonTotals).sort((a, b) => Number(a) - Number(b));
+  const avgLines = [];
+  const avgActuals = [];
+  seasonLabels.forEach(season => {
+    const bucket = seasonTotals[season];
+    const divisor = bucket.count || 1;
+    avgLines.push(Number((bucket.line / divisor).toFixed(2)));
+    avgActuals.push(Number((bucket.actual / divisor).toFixed(2)));
+  });
+  if (!seasonLabels.length) {
+    seasonLabels.push('No Data');
+    avgLines.push(0);
+    avgActuals.push(0);
+  }
+
+  ensureChart('totalsSeason', 'totalsTrendChart', {
+    type: 'line',
+    data: {
+      labels: seasonLabels,
+      datasets: [
+        {
+          label: 'Betting Total',
+          data: avgLines,
+          borderColor: chartPalette.primary,
+          backgroundColor: chartPalette.primary,
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'Actual Points',
+          data: avgActuals,
+          borderColor: chartPalette.accent,
+          backgroundColor: chartPalette.accent,
+          tension: 0.3,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  const confEntries = Object.entries(confTotals)
+    .map(([conf, stats]) => {
+      const attempts = stats.over + stats.under;
+      const rate = attempts ? stats.over / attempts : null;
+      return { conf, rate };
+    })
+    .filter(item => item.rate !== null)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 12);
+
+  const confLabels = confEntries.map(item => item.conf);
+  const confValues = confEntries.map(item => Number((item.rate * 100).toFixed(1)));
+  if (!confLabels.length) {
+    confLabels.push('No Data');
+    confValues.push(0);
+  }
+
+  ensureChart('totalsConf', 'confTotalsChart', {
+    type: 'bar',
+    data: {
+      labels: confLabels,
+      datasets: [{
+        label: 'Over %',
+        data: confValues,
+        backgroundColor: chartPalette.secondary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { callback: value => `${value}%` } } }
+    }
+  });
+}
+
+function refreshTeamOptions(games) {
+  const select = document.getElementById('teamSelect');
+  if (!select) return;
+
+  const teams = Array.from(new Set(games.flatMap(g => [g.homeTeam, g.awayTeam]).filter(Boolean))).sort((a, b) => String(a).localeCompare(String(b)));
+  const previous = overviewState.selectedTeam || select.value;
+
+  select.innerHTML = '<option value="">Select Team</option>';
+  teams.forEach(team => select.add(new Option(team, team)));
+
+  if (previous && teams.includes(previous)) {
+    select.value = previous;
+    overviewState.selectedTeam = previous;
+  } else if (teams.length) {
+    select.value = teams[0];
+    overviewState.selectedTeam = teams[0];
+  } else {
+    overviewState.selectedTeam = '';
+  }
+
+  select.onchange = () => {
+    overviewState.selectedTeam = select.value;
+    renderTeamTab();
+  };
+}
+
+function renderTeamInsights(filteredGames) {
+  const games = Array.isArray(filteredGames) ? filteredGames : filterGamesForScope('teams');
+  const select = document.getElementById('teamSelect');
+  const summary = document.getElementById('team-summary');
+  const tbody = document.getElementById('teamGamesTbody');
+  if (!select || !summary || !tbody) return;
+
+  const team = overviewState.selectedTeam || select.value;
+  if (!team) {
+    summary.innerHTML = '<div class="team-summary-card"><h3>Team</h3><p>—</p><small>Select a team to view performance.</small></div>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">Select a team to see recent results.</td></tr>';
+    ensureChart('teamAts', 'teamAtsChart', {
+      type: 'doughnut',
+      data: { labels: ['Covers', 'Losses', 'Push'], datasets: [{ data: [0, 0, 0], backgroundColor: [chartPalette.secondary, chartPalette.loss, chartPalette.neutral], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+    ensureChart('teamTotals', 'teamTotalsChart', {
+      type: 'doughnut',
+      data: { labels: ['Overs', 'Unders', 'Push'], datasets: [{ data: [0, 0, 0], backgroundColor: [chartPalette.over, chartPalette.under, chartPalette.neutral], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+    ensureChart('teamMoneyline', 'teamMoneylineChart', {
+      type: 'bar',
+      data: { labels: ['Wins', 'Losses'], datasets: [{ label: 'Moneyline Results', data: [0, 0], backgroundColor: [chartPalette.secondary, chartPalette.loss], borderRadius: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    });
+    return;
+  }
+
+  const teamGames = games.filter(g => g.homeTeam === team || g.awayTeam === team);
+  if (!teamGames.length) {
+    summary.innerHTML = `<div class="team-summary-card"><h3>${team}</h3><p>—</p><small>No games found for current filters.</small></div>`;
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="5">No games found for this team with the current filters.</td></tr>';
+    return;
+  }
+
+  const stats = {
+    games: 0,
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    pointsFor: 0,
+    pointsAgainst: 0,
+    ats: { cover: 0, loss: 0, push: 0 },
+    totals: { over: 0, under: 0, push: 0 },
+    moneyline: { win: 0, loss: 0, profit: 0, samples: 0 }
+  };
+
+  const rows = teamGames.map(g => {
+    const isHome = g.homeTeam === team;
+    const opponent = isHome ? (g.awayTeam || '—') : (g.homeTeam || '—');
+    const venue = isHome ? 'vs' : '@';
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    const teamScore = isHome ? homeScore : awayScore;
+    const oppScore = isHome ? awayScore : homeScore;
+
+    let resultLabel = '—';
+    if (teamScore !== null && oppScore !== null) {
+      stats.games += 1;
+      stats.pointsFor += teamScore;
+      stats.pointsAgainst += oppScore;
+      if (teamScore > oppScore) { stats.wins += 1; resultLabel = `W ${teamScore}-${oppScore}`; }
+      else if (teamScore < oppScore) { stats.losses += 1; resultLabel = `L ${teamScore}-${oppScore}`; }
+      else { stats.ties += 1; resultLabel = `T ${teamScore}-${oppScore}`; }
+    } else {
+      resultLabel = 'N/A';
+    }
+
+    const spread = toNumber(g.spread);
+    let atsResult = 'N/A';
+    if (spread !== null && teamScore !== null && oppScore !== null) {
+      const teamSpread = isHome ? spread : -spread;
+      const margin = teamScore - oppScore;
+      const diff = margin + teamSpread;
+      if (diff > 0) { stats.ats.cover += 1; atsResult = `Cover (${formatSignedNumber(teamSpread)})`; }
+      else if (diff < 0) { stats.ats.loss += 1; atsResult = `Loss (${formatSignedNumber(teamSpread)})`; }
+      else { stats.ats.push += 1; atsResult = 'Push'; }
+    }
+
+    const total = toNumber(g.overUnder);
+    let totalsResult = 'N/A';
+    if (total !== null && teamScore !== null && oppScore !== null) {
+      const points = teamScore + oppScore;
+      if (points > total) { stats.totals.over += 1; totalsResult = `Over (${formatSpread(total)})`; }
+      else if (points < total) { stats.totals.under += 1; totalsResult = `Under (${formatSpread(total)})`; }
+      else { stats.totals.push += 1; totalsResult = 'Push'; }
+    }
+
+    const moneyline = toNumber(isHome ? (g.homeMoneyline ?? g.HomeMoneyline) : (g.awayMoneyline ?? g.AwayMoneyline));
+    if (moneyline !== null && teamScore !== null && oppScore !== null) {
+      const decimal = americanToDecimal(moneyline);
+      if (decimal !== null) {
+        stats.moneyline.samples += 1;
+        if (teamScore > oppScore) {
+          stats.moneyline.win += 1;
+          stats.moneyline.profit += decimal - 1;
+        } else if (teamScore < oppScore) {
+          stats.moneyline.loss += 1;
+          stats.moneyline.profit -= 1;
+        }
+      }
+    }
+
+    return {
+      date: formatGameDate(g.startDate),
+      opponent: `${venue} ${opponent}`,
+      result: resultLabel,
+      ats: atsResult,
+      totals: totalsResult
+    };
+  });
+
+  const margin = stats.games ? (stats.pointsFor - stats.pointsAgainst) / stats.games : null;
+  const coverRate = (stats.ats.cover + stats.ats.loss) ? stats.ats.cover / (stats.ats.cover + stats.ats.loss) : null;
+  const overRate = (stats.totals.over + stats.totals.under) ? stats.totals.over / (stats.totals.over + stats.totals.under) : null;
+  const mlGames = stats.moneyline.samples || 0;
+
+  summary.innerHTML = `
+    <div class="team-summary-card"><h3>${team}</h3><p>${stats.wins}-${stats.losses}${stats.ties ? `-${stats.ties}` : ''}</p><small>Avg margin ${formatSignedNumber(margin)}</small></div>
+    <div class="team-summary-card"><h3>ATS Record</h3><p>${stats.ats.cover}-${stats.ats.loss}-${stats.ats.push}</p><small>Cover rate ${formatPercent(coverRate)}</small></div>
+    <div class="team-summary-card"><h3>Totals</h3><p>${stats.totals.over}-${stats.totals.under}-${stats.totals.push}</p><small>Over rate ${formatPercent(overRate)}</small></div>
+    <div class="team-summary-card"><h3>Moneyline</h3><p>${formatUnits(mlGames ? stats.moneyline.profit / mlGames : null)}</p><small>${stats.moneyline.win}-${stats.moneyline.loss} record (1u stake)</small></div>
+  `;
+
+  ensureChart('teamAts', 'teamAtsChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Covers', 'Losses', 'Push'],
+      datasets: [{
+        data: [stats.ats.cover, stats.ats.loss, stats.ats.push],
+        backgroundColor: [chartPalette.secondary, chartPalette.loss, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  ensureChart('teamTotals', 'teamTotalsChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Overs', 'Unders', 'Push'],
+      datasets: [{
+        data: [stats.totals.over, stats.totals.under, stats.totals.push],
+        backgroundColor: [chartPalette.over, chartPalette.under, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  ensureChart('teamMoneyline', 'teamMoneylineChart', {
+    type: 'bar',
+    data: {
+      labels: ['Wins', 'Losses'],
+      datasets: [{
+        label: 'Moneyline Results (with odds data)',
+        data: [stats.moneyline.win, stats.moneyline.loss],
+        backgroundColor: [chartPalette.secondary, chartPalette.loss],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  const tableRows = rows
+    .sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      const validA = Number.isFinite(dateA);
+      const validB = Number.isFinite(dateB);
+      if (validA && validB) return dateB - dateA;
+      if (validA) return -1;
+      if (validB) return 1;
+      return 0;
+    })
+    .slice(0, 12)
+    .map(row => `
+      <tr style="border-top:1px solid #eee">
+        <td style="padding:8px">${row.date}</td>
+        <td style="padding:8px">${row.opponent}</td>
+        <td style="padding:8px">${row.result}</td>
+        <td style="padding:8px">${row.ats}</td>
+        <td style="padding:8px">${row.totals}</td>
+      </tr>
+    `).join('');
+
+  tbody.innerHTML = tableRows || '<tr class="empty-row"><td colspan="5">No completed games with scoring data.</td></tr>';
+}
+
+function renderOverviewTab() {
+  const filtered = filterGamesForScope('overview');
+  overviewState.filtered = filtered;
+  renderTable(filtered);
+  renderChartsForOverview(filtered);
+  renderMoneylineSection(filtered);
+}
+
+function renderSharpTab() {
+  const filtered = filterGamesForScope('sharp');
+  renderSharpCharts(filtered);
+}
+
+function renderEvTab() {
+  const filtered = filterGamesForScope('ev');
+  renderEvCharts(filtered);
+}
+
+function renderKeyNumbersTab() {
+  const filtered = filterGamesForScope('keyNumbers');
+  renderKeyNumbersChart(filtered);
+}
+
+function renderSpreadsTab() {
+  const filtered = filterGamesForScope('spreads');
+  renderSpreadCharts(filtered);
+}
+
+function renderTotalsTab() {
+  const filtered = filterGamesForScope('totals');
+  renderTotalsCharts(filtered);
+}
+
+function renderTeamTab() {
+  const filtered = filterGamesForScope('teams');
+  refreshTeamOptions(filtered);
+  renderTeamInsights(filtered);
+}
+
+function renderAllTabs() {
+  renderOverviewTab();
+  renderSharpTab();
+  renderEvTab();
+  renderKeyNumbersTab();
+  renderSpreadsTab();
+  renderTotalsTab();
+  renderTeamTab();
+}
+
+function renderEvCharts(games) {
+  let homeCover = 0, homeFail = 0, homePush = 0;
+  let overCount = 0, underCount = 0, totalPush = 0;
+  const conferenceStats = {};
+
+  games.forEach(g => {
+    const spread = toNumber(g.spread);
+    const homeScore = toNumber(g.homeScore);
+    const awayScore = toNumber(g.awayScore);
+    const total = toNumber(g.overUnder);
+
+    if (spread !== null && homeScore !== null && awayScore !== null) {
+      const margin = homeScore - awayScore;
+      const diff = margin + spread;
+      if (diff > 0) homeCover += 1;
+      else if (diff < 0) homeFail += 1;
+      else homePush += 1;
+
+      const recordConference = (conf, didCover, wasPush) => {
+        if (!conf) return;
+        const bucket = conferenceStats[conf] || (conferenceStats[conf] = { cover: 0, fail: 0, push: 0 });
+        if (wasPush) bucket.push += 1;
+        else if (didCover) bucket.cover += 1;
+        else bucket.fail += 1;
+      };
+
+      const wasPush = diff === 0;
+      recordConference(g.homeConference, diff > 0, wasPush);
+
+      const awayDiff = (awayScore - homeScore) - spread;
+      recordConference(g.awayConference, awayDiff > 0, awayDiff === 0);
+    }
+
+    if (total !== null && homeScore !== null && awayScore !== null) {
+      const points = homeScore + awayScore;
+      if (points > total) overCount += 1;
+      else if (points < total) underCount += 1;
+      else totalPush += 1;
+    }
+  });
+
+  ensureChart('atsSplit', 'atsSplitChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Home Covers', 'Home Fails', 'Push'],
+      datasets: [{
+        data: [homeCover, homeFail, homePush],
+        backgroundColor: [chartPalette.secondary, chartPalette.loss, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  ensureChart('totalsSplit', 'totalsSplitChart', {
+    type: 'doughnut',
+    data: {
+      labels: ['Overs', 'Unders', 'Push'],
+      datasets: [{
+        data: [overCount, underCount, totalPush],
+        backgroundColor: [chartPalette.over, chartPalette.under, chartPalette.neutral],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+
+  const conferenceData = Object.entries(conferenceStats)
+    .map(([conf, stats]) => {
+      const attempts = stats.cover + stats.fail;
+      const rate = attempts ? stats.cover / attempts : null;
+      return { conf, rate };
+    })
+    .filter(item => item.rate !== null)
+    .sort((a, b) => b.rate - a.rate)
+    .slice(0, 12);
+
+  const confLabels = conferenceData.map(item => item.conf);
+  const confValues = conferenceData.map(item => Number((item.rate * 100).toFixed(1)));
+  if (!confLabels.length) {
+    confLabels.push('No Data');
+    confValues.push(0);
+  }
+
+  ensureChart('confAts', 'conferenceAtsChart', {
+    type: 'bar',
+    data: {
+      labels: confLabels,
+      datasets: [{
+        label: 'Cover %',
+        data: confValues,
+        backgroundColor: chartPalette.primary,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, ticks: { callback: value => `${value}%` } } }
+    }
+  });
+}
+
+async function loadOverview() {
+  // 1) STATS
+  const stats = await getJson('/api/stats');
+  if (!stats.success) throw new Error('Stats endpoint returned success=false');
+  const s = stats.data;
+
+  // Update stat cards (use live values)
+  const totalGames = s.totalGames ?? 0;
+  const spreadCov = formatPct(s.spreadCoverage);
+  const totalsCov = formatPct(s.totalsCoverage);
+  const booksCount = Array.isArray(s.sportsbooks) ? s.sportsbooks.length : 0;
+
+  document.getElementById('overview-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
+    <div class="stat-card"><div class="stat-number">${spreadCov}%</div><div class="stat-label">Spread Coverage</div></div>
+    <div class="stat-card"><div class="stat-number">${totalsCov}%</div><div class="stat-label">Totals Coverage</div></div>
+    <div class="stat-card"><div class="stat-number">${booksCount}</div><div class="stat-label">Books</div></div>
+  `;
+
+  // 2) GAMES
+  const gamesResp = await getJson('/api/games');
+  const games = Array.isArray(gamesResp.data) ? gamesResp.data : [];
+  ALL_GAMES = games;
+  initializeFilters(s);
+  renderAllTabs();
+}
+
+document.addEventListener('DOMContentLoaded', loadOverview);
+</script>
+
 </body>
 </html>
