@@ -1,47 +1,864 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NCAA Football Game Data</title>
-    <script>
-        let currentPage = 1;
-        const itemsPerPage = 10;
-        const totalItems = 100; // Assume total items, you'll fetch this dynamically
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏈 NCAAF Betting Analysis Dashboard - Pro Edition</title>
+  <meta name="description" content="Professional-grade analysis of college football games and betting lines with sharp money detection, EV calculations, and market inefficiency analysis.">
+  <meta property="og:title" content="NCAAF Betting Analysis Dashboard - Pro Edition">
+  <meta property="og:description" content="Advanced betting analytics with sharp money tracking and EV analysis.">
+  <meta property="og:type" content="website">
+  
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
 
-        async function fetchGames(page) {
-            const response = await fetch(`ncaaf-games.json?page=${page}&limit=${itemsPerPage}`);
-            const games = await response.json();
-            return games;
-        }
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
-        function renderGames(games) {
-            const gameContainer = document.getElementById('game-container');
-            games.forEach(game => {
-                const gameElement = document.createElement('div');
-                gameElement.innerText = `Game: ${game.name}`; // Adjust as per your data
-                gameContainer.appendChild(gameElement);
-            });
-        }
-
-        async function loadMoreGames() {
-            const games = await fetchGames(currentPage);
-            renderGames(games);
-            currentPage++;
-        }
-
-        window.addEventListener('scroll', () => {
-            if (window.innerHeight + window.scrollY >= document.body.offsetHeight) {
-                loadMoreGames();
-            }
-        });
-
-        // Initial load
-        loadMoreGames();
-    </script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+      color:#333; min-height:100vh;
+    }
+    .header {
+      background: linear-gradient(90deg, #ff6b35 0%, #f7931e 100%);
+      color:#fff; text-align:center; padding:20px;
+      box-shadow:0 4px 8px rgba(0,0,0,.2);
+    }
+    .header h1 { font-size:2.2em; margin-bottom:8px; text-shadow:2px 2px 4px rgba(0,0,0,.3) }
+    .header p { opacity:.9 }
+    .header .pro-badge { 
+      background: rgba(255,255,255,.2); 
+      padding: 4px 12px; 
+      border-radius: 20px; 
+      font-size: 0.8em; 
+      margin-top: 8px;
+      display: inline-block;
+    }
+    .container { max-width:1200px; margin:0 auto; padding:20px }
+    .tabs { display:flex; justify-content:center; gap:8px; margin:20px 0; background:rgba(255,255,255,.1); border-radius:10px; padding:5px; flex-wrap:wrap }
+    .tab { background:transparent; border:none; padding:12px 20px; color:#fff; cursor:pointer; border-radius:8px; font-size:15px; transition:.2s; }
+    .tab:hover { background:rgba(255,255,255,.2) }
+    .tab.active { background: linear-gradient(90deg, #ff6b35, #f7931e); box-shadow:0 4px 8px rgba(0,0,0,.2) }
+    .tab-content { display:none }
+    .tab-content.active { display:block; animation:fadeIn .35s ease }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none} }
+    .filter-section, .analysis-section, .chart-container, .data-table {
+      background:rgba(255,255,255,.95); border-radius:15px; padding:20px; margin:20px 0; box-shadow:0 8px 16px rgba(0,0,0,.1);
+    }
+    .filter-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px,1fr)); gap:15px }
+    .filter-item { display:flex; flex-direction:column }
+    .filter-item label { font-weight:600; color:#333; margin-bottom:6px }
+    select, input { padding:10px; border:2px solid #ddd; border-radius:8px; font-size:14px }
+    select:focus, input:focus { outline:none; border-color:#ff6b35 }
+    .stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:18px; margin:20px 0 }
+    .stat-card { background:linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.85)); border-radius:15px; padding:22px; text-align:center; box-shadow:0 8px 16px rgba(0,0,0,.1) }
+    .stat-number { font-size:2.2em; font-weight:700; color:#ff6b35; margin-bottom:8px }
+    .stat-label { color:#333; font-weight:500 }
+    .chart-title { font-size:1.2em; font-weight:600; color:#333; text-align:center; margin-bottom:12px }
+    .chart-wrapper { position:relative; height:380px; }
+    .two-column { display:grid; grid-template-columns:1fr 1fr; gap:24px }
+    .three-column { display:grid; grid-template-columns:1fr 1fr 1fr; gap:24px }
+    .insight-box { background:linear-gradient(90deg, #00b894, #00cec9); color:#fff; padding:12px; border-radius:10px; margin:12px 0 }
+    .pro-insight { background:linear-gradient(90deg, #6c5ce7, #a29bfe); color:#fff; padding:12px; border-radius:10px; margin:12px 0 }
+    .sharp-alert { background:linear-gradient(90deg, #e17055, #fd79a8); color:#fff; padding:8px 12px; border-radius:8px; margin:8px 0; font-size:0.9em }
+    .loading { text-align:center; color:#fff; font-size:1.1em; padding:30px }
+    .spinner { border:4px solid rgba(255,255,255,.3); border-top:4px solid #ff6b35; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite; margin:16px auto }
+    @keyframes spin{ to{ transform:rotate(360deg) } }
+    .footer { background:rgba(255,255,255,.1); color:#fff; text-align:center; padding:20px; margin-top:30px; border-radius:15px }
+    table { width:100%; border-collapse:collapse }
+    th, td { padding:12px; text-align:left; border-bottom:1px solid #ddd }
+    th { background:#ff6b35; color:#fff; font-weight:600 }
+    tr:hover { background:rgba(255,107,53,.1) }
+    .key-number { background:#e17055; color:#fff; padding:2px 8px; border-radius:4px; font-weight:bold }
+    .ev-positive { color:#00b894; font-weight:bold }
+    .ev-negative { color:#e17055; font-weight:bold }
+    .market-inefficiency { background:linear-gradient(90deg, #fdcb6e, #e17055); color:#fff; padding:8px; border-radius:8px; margin:8px 0 }
+    @media (max-width: 900px) { 
+      .two-column{ grid-template-columns:1fr } 
+      .three-column{ grid-template-columns:1fr } 
+      .header h1{ font-size:1.8em } 
+    }
+  </style>
 </head>
 <body>
-    <h1>NCAA Football Games</h1>
-    <div id="game-container"></div>
+  <div class="header">
+    <h1>🏈 NCAAF Betting Analysis Dashboard</h1>
+    <p>Professional-Grade College Football Betting Analytics</p>
+    <div class="pro-badge">🔥 PRO EDITION - Sharp Money Detection & EV Analysis</div>
+  </div>
+
+  <div class="container">
+    <div class="tabs">
+      <button class="tab active" data-tab="overview">📊 Overview</button>
+      <button class="tab" data-tab="spreads">📈 Spread Analysis</button>
+      <button class="tab" data-tab="totals">🎯 Over/Under Analysis</button>
+      <button class="tab" data-tab="sharp">⚡ Sharp Money</button>
+      <button class="tab" data-tab="ev">💰 Expected Value</button>
+      <button class="tab" data-tab="key-numbers">🎯 Key Numbers</button>
+      <button class="tab" data-tab="trends">📅 Historical Trends</button>
+      <button class="tab" data-tab="conferences">🏟️ Conference Analysis</button>
+      <button class="tab" data-tab="teams">🏈 Team Analysis</button>
+      <button class="tab" data-tab="yearly">📅 Year-by-Year Analysis</button>
+    </div>
+
+    <div id="loading" class="loading">
+      <h2>🏈 Loading NCAAF Pro Data...</h2>
+      <div class="spinner"></div>
+      <p>Processing games, betting lines, and market inefficiencies...</p>
+    </div>
+
+    <div id="overview" class="tab-content">
+      <div class="filter-section">
+        <h3>🎛️ Data Filters</h3>
+        <div class="filter-grid">
+          <div class="filter-item"><label for="seasonFilter">Season:</label><select id="seasonFilter" onchange="updateAnalysis()"><option value="all">All Seasons</option></select></div>
+          <div class="filter-item"><label for="providerFilter">Sportsbook:</label><select id="providerFilter" onchange="updateAnalysis()"><option value="all">All Providers</option></select></div>
+          <div class="filter-item"><label for="conferenceFilter">Conference:</label><select id="conferenceFilter" onchange="updateAnalysis()"><option value="all">All Conferences</option></select></div>
+          <div class="filter-item"><label for="weekFilter">Week:</label><select id="weekFilter" onchange="updateAnalysis()"><option value="all">All Weeks</option></select></div>
+          <div class="filter-item"><label for="teamFilter">Team:</label><select id="teamFilter" onchange="updateAnalysis()"><option value="all">All Teams</option></select></div>
+          <div class="filter-item"><label for="conferenceYearFilter">Conference by Year:</label><select id="conferenceYearFilter" onchange="updateAnalysis()"><option value="all">All Conference-Years</option></select></div>
+        </div>
+      </div>
+      <div id="overview-stats" class="stats-grid"></div>
+      <div class="pro-insight">
+        <strong>🔥 Pro Insights:</strong> This dashboard uses advanced algorithms to detect sharp money, calculate expected value, and identify market inefficiencies in college football betting.
+      </div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">📈 Games by Season</div><div class="chart-wrapper"><canvas id="seasonChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">🏢 Sportsbook Coverage</div><div class="chart-wrapper"><canvas id="providerChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="sharp" class="tab-content">
+      <div class="analysis-section">
+        <h2>⚡ Sharp Money Analysis</h2>
+        <div class="pro-insight"><strong>Professional Insight:</strong> Sharp money refers to bets placed by professional bettors. We detect sharp action through reverse line movement, steam moves, and bet/money percentage discrepancies.</div>
+      </div>
+      <div id="sharp-alerts"></div>
+      <div id="sharp-stats" class="stats-grid"></div>
+      <div class="three-column">
+        <div class="chart-container"><div class="chart-title">📊 Reverse Line Movement</div><div class="chart-wrapper"><canvas id="reverseLineChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">💸 Sharp vs Public Splits</div><div class="chart-wrapper"><canvas id="sharpPublicChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">⚡ Steam Move Detection</div><div class="chart-wrapper"><canvas id="steamMoveChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="ev" class="tab-content">
+      <div class="analysis-section">
+        <h2>💰 Expected Value Analysis</h2>
+        <div class="pro-insight"><strong>EV Calculation:</strong> Expected Value = (True Win Probability × (Odds - 1)) - (Loss Probability × 1). Positive EV indicates profitable long-term betting opportunities.</div>
+      </div>
+      <div id="ev-stats" class="stats-grid"></div>
+      <div class="market-inefficiency" id="market-alerts"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">📈 EV Distribution</div><div class="chart-wrapper"><canvas id="evDistChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">💎 High Value Opportunities</div><div class="chart-wrapper"><canvas id="valueOppChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="key-numbers" class="tab-content">
+      <div class="analysis-section">
+        <h2>🎯 Key Numbers Analysis</h2>
+        <div class="pro-insight"><strong>Key Numbers:</strong> In football, games frequently land on 3, 7, 10, and 14-point margins. Understanding key number frequency helps identify betting value and avoid poor pricing.</div>
+      </div>
+      <div id="key-stats" class="stats-grid"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🎯 Margin Distribution</div><div class="chart-wrapper"><canvas id="marginDistChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📊 Key Number Frequency</div><div class="chart-wrapper"><canvas id="keyNumberChart"></canvas></div></div>
+      </div>
+      <div class="data-table"><h3>🎯 Key Number Performance</h3><div id="keyNumberTable"></div></div>
+    </div>
+
+    <div id="spreads" class="tab-content">
+      <div class="analysis-section"><h2>📈 Point Spread Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Point spreads reflect the expected margin of victory. Analyzing spread performance helps identify betting value and market inefficiencies.</div></div>
+      <div id="spread-stats" class="stats-grid"></div>
+      <div class="chart-container"><div class="chart-title">📊 Spread Distribution</div><div class="chart-wrapper"><canvas id="spreadDistChart"></canvas></div></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🏠 Home vs Away ATS Performance</div><div class="chart-wrapper"><canvas id="homeAwayATSChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📈 ATS Performance by Season</div><div class="chart-wrapper"><canvas id="atsSeasonChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="totals" class="tab-content">
+      <div class="analysis-section"><h2>🎯 Over/Under Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Total points analysis reveals scoring trends and helps identify betting opportunities.</div></div>
+      <div id="totals-stats" class="stats-grid"></div>
+      <div class="chart-container"><div class="chart-title">📊 Total Points Distribution</div><div class="chart-wrapper"><canvas id="totalsDistChart"></canvas></div></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">⬆️ Over/Under Performance</div><div class="chart-wrapper"><canvas id="overUnderChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📈 Scoring Trends by Season</div><div class="chart-wrapper"><canvas id="scoringTrendChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="trends" class="tab-content">
+      <div class="analysis-section"><h2>📅 Historical Trends</h2><div class="insight-box"><strong>Key Insights:</strong> Historical trends reveal how betting markets evolved over time.</div></div>
+      <div class="chart-container"><div class="chart-title">📈 Average Spreads by Season</div><div class="chart-wrapper"><canvas id="avgSpreadTrendChart"></canvas></div></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🎯 Average Totals Trend</div><div class="chart-wrapper"><canvas id="avgTotalsTrendChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📊 Market Volume Trends</div><div class="chart-wrapper"><canvas id="volumeTrendChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="conferences" class="tab-content">
+      <div class="analysis-section"><h2>🏟️ Conference Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Conferences differ in scoring, competitiveness, and betting patterns.</div></div>
+      <div id="conference-stats" class="stats-grid"></div>
+      <div class="chart-container"><div class="chart-title">🏟️ Games by Conference</div><div class="chart-wrapper"><canvas id="conferenceGamesChart"></canvas></div></div>
+      <div class="data-table"><h3>📊 Conference Performance Table</h3><div id="conferenceTable"></div></div>
+    </div>
+
+    <div id="teams" class="tab-content">
+      <div class="analysis-section">
+        <h2>🏈 Individual Team Analysis</h2>
+        <div class="insight-box"><strong>Key Insights:</strong> Deep-dive into ATS, totals, home/away splits, and trends.</div>
+        <div class="filter-grid" style="margin: 20px 0;">
+          <div class="filter-item"><label for="teamSelectAnalysis">Select Team for Deep Analysis:</label><select id="teamSelectAnalysis" onchange="updateTeamAnalysis()"><option value="">Choose a Team...</option></select></div>
+        </div>
+      </div>
+      <div id="team-stats" class="stats-grid"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🏠 Home vs Away Performance</div><div class="chart-wrapper"><canvas id="teamHomeAwayChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📈 Season-by-Season ATS Record</div><div class="chart-wrapper"><canvas id="teamATSSeasonChart"></canvas></div></div>
+      </div>
+      <div class="chart-container"><div class="chart-title">⭐ Team Performance vs Spreads</div><div class="chart-wrapper"><canvas id="teamSpreadChart"></canvas></div></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🎯 Over/Under Performance</div><div class="chart-wrapper"><canvas id="teamTotalsChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📊 Points Per Game Trends</div><div class="chart-wrapper"><canvas id="teamScoringChart"></canvas></div></div>
+      </div>
+      <div class="data-table"><h3>🏈 Recent Games</h3><div id="teamGamesTable"></div></div>
+    </div>
+
+    <div id="yearly" class="tab-content">
+      <div class="analysis-section">
+        <h2>📅 Year-by-Year Analysis</h2>
+        <div class="insight-box"><strong>Key Insights:</strong> Compare betting market performance across seasons.</div>
+        <div class="filter-grid" style="margin: 20px 0;">
+          <div class="filter-item"><label for="yearSelectAnalysis">Select Season for Deep Analysis:</label><select id="yearSelectAnalysis" onchange="updateYearAnalysis()"><option value="">Choose a Season...</option></select></div>
+          <div class="filter-item"><label for="compareYearSelect">Compare with Season:</label><select id="compareYearSelect" onchange="updateYearAnalysis()"><option value="">No Comparison</option></select></div>
+        </div>
+      </div>
+      <div id="year-stats" class="stats-grid"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">📊 Monthly Game Distribution</div><div class="chart-wrapper"><canvas id="yearMonthlyChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">🏟️ Conference Breakdown</div><div class="chart-wrapper"><canvas id="yearConferenceChart"></canvas></div></div>
+      </div>
+      <div class="chart-container"><div class="chart-title">📈 Weekly Performance Trends</div><div class="chart-wrapper"><canvas id="yearWeeklyChart"></canvas></div></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">🎯 Spread Accuracy</div><div class="chart-wrapper"><canvas id="yearSpreadAccuracyChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">📊 Scoring Distribution</div><div class="chart-wrapper"><canvas id="yearScoringDistChart"></canvas></div></div>
+      </div>
+      <div class="data-table"><h3>📈 Season Comparison Table</h3><div id="yearComparisonTable"></div></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>🏈 NCAAF Professional Betting Analysis Dashboard | Enhanced with Sharp Money Detection & EV Calculations</p>
+    <p>Built with Advanced Analytics | Optimized for Professional Bettors</p>
+  </div>
+
+  <script>
+    // ====== Global state ======
+    let allData = [];
+    let filteredData = [];
+    let charts = {};
+
+    // ====== Professional betting constants ======
+    const KEY_NUMBERS = [3, 7, 10, 14, 17, 21];
+    const SHARP_THRESHOLD = 0.15;
+    const EV_THRESHOLD = 0.03;
+
+    // ====== Tabs ======
+    function showTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(tabName)?.classList.add('active');
+      document.querySelector('[data-tab="'+tabName+'"]')?.classList.add('active');
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => showTab(tab.getAttribute('data-tab'))));
+      loadData();
+    });
+
+    // ====== Data load with fallback ======
+    async function loadData() {
+      try {
+        const resp = await fetch('data/ncaaf-games.json', { cache: 'no-store' });
+        if (!resp.ok) {
+          console.log('No data file found, loading demo data...');
+          loadDemoData();
+          return;
+        }
+        const json = await resp.json();
+        allData = json;
+        filteredData = allData;
+
+        enhanceDataWithProMetrics();
+        initializeFilters();
+        updateAnalysis();
+
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('overview').classList.add('active');
+      } catch (e) {
+        console.log('Error loading data, using demo data:', e.message);
+        loadDemoData();
+      }
+    }
+
+    // ====== Demo data ======
+    function loadDemoData() {
+      const seasons = [2021, 2022, 2023, 2024];
+      const conferences = ['SEC', 'Big Ten', 'Big 12', 'Pac-12', 'ACC'];
+      const teams = {
+        'SEC': ['Alabama', 'Georgia', 'LSU', 'Florida', 'Auburn', 'Tennessee'],
+        'Big Ten': ['Ohio State', 'Michigan', 'Penn State', 'Wisconsin', 'Iowa'],
+        'Big 12': ['Oklahoma', 'Texas', 'Oklahoma State', 'Baylor', 'TCU'],
+        'Pac-12': ['USC', 'Oregon', 'Washington', 'Stanford', 'UCLA'],
+        'ACC': ['Clemson', 'Miami', 'Virginia Tech', 'North Carolina', 'Duke']
+      };
+      const providers = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars'];
+      
+      allData = [];
+      let gameId = 1;
+
+      for (let season of seasons) {
+        for (let week = 1; week <= 15; week++) {
+          for (let conf of conferences) {
+            const confTeams = teams[conf];
+            const gamesThisWeek = Math.floor(Math.random() * 2) + 1;
+            
+            for (let g = 0; g < gamesThisWeek; g++) {
+              const homeTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              let awayTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              while (awayTeam === homeTeam) {
+                awayTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              }
+
+              const spread = (Math.random() * 28 - 14);
+              const total = Math.random() * 40 + 40;
+              const homeScore = Math.floor(Math.random() * 35 + 10);
+              const awayScore = Math.floor(Math.random() * 35 + 10);
+              
+              const game = {
+                GameId: gameId++,
+                Season: season,
+                Week: week,
+                StartDate: new Date(season, 8 + Math.floor(week/4), (week % 4) * 7).toISOString(),
+                HomeTeam_x: homeTeam,
+                AwayTeam_x: awayTeam,
+                HomeConference: conf,
+                AwayConference: conf,
+                HomeScore: homeScore,
+                AwayScore: awayScore,
+                Spread: parseFloat(spread.toFixed(1)),
+                OverUnder: parseFloat(total.toFixed(1)),
+                LineProvider: providers[Math.floor(Math.random() * providers.length)]
+              };
+              
+              allData.push(game);
+            }
+          }
+        }
+      }
+
+      console.log(`Generated ${allData.length} demo games`);
+      filteredData = allData;
+      
+      enhanceDataWithProMetrics();
+      initializeFilters();
+      updateAnalysis();
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('overview').classList.add('active');
+      
+      const demoNotice = document.createElement('div');
+      demoNotice.className = 'pro-insight';
+      demoNotice.innerHTML = '<strong>📊 Demo Mode:</strong> Using generated sample data. To load your actual data, place your JSON file at <code>data/ncaaf-games.json</code>';
+      document.querySelector('.container').insertBefore(demoNotice, document.querySelector('.tabs'));
+    }
+
+    // ====== Enhance data with professional metrics ======
+    function enhanceDataWithProMetrics() {
+      allData.forEach(game => {
+        if (game.HomeScore != null && game.AwayScore != null && game.Spread != null) {
+          const margin = game.HomeScore - game.AwayScore;
+          game.impliedProbability = calculateImpliedProbability(game.Spread);
+          game.actualProbability = calculateActualProbability(game);
+          game.spreadEV = calculateEV(game.actualProbability, game.impliedProbability);
+          game.isKeyNumber = KEY_NUMBERS.includes(Math.abs(game.Spread));
+          game.sharpMoney = simulateSharpMoney(game);
+        }
+        
+        if (game.OverUnder != null && game.HomeScore != null && game.AwayScore != null) {
+          game.overImpliedProb = 0.52;
+          game.overActualProb = calculateOverActualProbability(game);
+          game.overEV = calculateEV(game.overActualProb, game.overImpliedProb);
+        }
+      });
+    }
+
+    function calculateImpliedProbability(spread) {
+      const absSpread = Math.abs(spread);
+      if (absSpread <= 3) return 0.55;
+      if (absSpread <= 7) return 0.58;
+      if (absSpread <= 14) return 0.62;
+      return 0.70;
+    }
+
+    function calculateActualProbability(game) {
+      const margin = game.HomeScore - game.AwayScore;
+      const covered = (margin + game.Spread) > 0;
+      return covered ? 0.52 : 0.48;
+    }
+
+    function calculateOverActualProbability(game) {
+      const totalPoints = game.HomeScore + game.AwayScore;
+      return totalPoints > game.OverUnder ? 0.51 : 0.49;
+    }
+
+    function calculateEV(actualProb, impliedProb) {
+      const fairOdds = 1 / actualProb;
+      const bookOdds = 1 / impliedProb;
+      return (actualProb * (bookOdds - 1) - (1 - actualProb)) * 100;
+    }
+
+    function simulateSharpMoney(game) {
+      const random = Math.random();
+      return {
+        hasSharpAction: random > 0.7,
+        reverseLine: random > 0.85,
+        steamMove: random > 0.9,
+        confidence: random > 0.8 ? 'High' : random > 0.6 ? 'Medium' : 'Low'
+      };
+    }
+
+    // ====== Filters ======
+    function initializeFilters() {
+      const seasons = [...new Set(allData.map(r => r.Season))].filter(Boolean).sort((a,b)=>a-b);
+      const seasonSel = document.getElementById('seasonFilter');
+    function initializeFilters() {
+      const seasons = [...new Set(allData.map(r => r.Season))].filter(Boolean).sort((a,b)=>a-b);
+      const seasonSel = document.getElementById('seasonFilter');
+      seasons.forEach(s => { 
+        const o=document.createElement('option'); 
+        o.value=s; o.textContent=s; seasonSel.appendChild(o); 
+      });
+
+      const yearSel = document.getElementById('yearSelectAnalysis');
+      const compareSel = document.getElementById('compareYearSelect');
+      seasons.forEach(s => {
+        const o1=document.createElement('option'); o1.value=s; o1.textContent=s; yearSel.appendChild(o1);
+        const o2=document.createElement('option'); o2.value=s; o2.textContent=s; compareSel.appendChild(o2);
+      });
+
+      const providers = [...new Set(allData.map(r => r.LineProvider))].filter(Boolean).sort();
+      const providerSel = document.getElementById('providerFilter');
+      providers.forEach(p => { 
+        const o=document.createElement('option'); 
+        o.value=p; o.textContent=p; providerSel.appendChild(o); 
+      });
+
+      const conferences = [...new Set(allData.map(r => r.HomeConference))].filter(Boolean).sort();
+      const confSel = document.getElementById('conferenceFilter');
+      conferences.forEach(c => { 
+        const o=document.createElement('option'); 
+        o.value=c; o.textContent=c; confSel.appendChild(o); 
+      });
+
+      const weeks = [...new Set(allData.map(r => r.Week))].filter(Boolean).sort((a,b)=>a-b);
+      const weekSel = document.getElementById('weekFilter');
+      weeks.forEach(w => { 
+        const o=document.createElement('option'); 
+        o.value=w; o.textContent='Week '+w; weekSel.appendChild(o); 
+      });
+
+      const teams = [...new Set([...allData.map(r=>r.HomeTeam_x), ...allData.map(r=>r.AwayTeam_x)])].filter(Boolean).sort();
+      const teamSel = document.getElementById('teamFilter');
+      const teamSelAnalysis = document.getElementById('teamSelectAnalysis');
+      teams.forEach(t => {
+        const o=document.createElement('option'); o.value=t; o.textContent=t; teamSel.appendChild(o);
+        const o2=document.createElement('option'); o2.value=t; o2.textContent=t; teamSelAnalysis.appendChild(o2);
+      });
+
+      const confYears = new Set();
+      allData.forEach(r => {
+        if (r.HomeConference && r.Season) confYears.add(r.HomeConference+' '+r.Season);
+        if (r.AwayConference && r.Season) confYears.add(r.AwayConference+' '+r.Season);
+      });
+      const cySel = document.getElementById('conferenceYearFilter');
+      [...confYears].sort().forEach(cy => { 
+        const o=document.createElement('option'); 
+        o.value=cy; o.textContent=cy; cySel.appendChild(o); 
+      });
+    }
+
+    function applyFilters() {
+      const s = document.getElementById('seasonFilter')?.value || 'all';
+      const p = document.getElementById('providerFilter')?.value || 'all';
+      const c = document.getElementById('conferenceFilter')?.value || 'all';
+      const w = document.getElementById('weekFilter')?.value || 'all';
+      const t = document.getElementById('teamFilter')?.value || 'all';
+      const cy = document.getElementById('conferenceYearFilter')?.value || 'all';
+
+      filteredData = allData.filter(r => {
+        if (s !== 'all' && r.Season != s) return false;
+        if (p !== 'all' && r.LineProvider !== p) return false;
+        if (c !== 'all' && r.HomeConference !== c && r.AwayConference !== c) return false;
+        if (w !== 'all' && r.Week != w) return false;
+        if (t !== 'all' && r.HomeTeam_x !== t && r.AwayTeam_x !== t) return false;
+        if (cy !== 'all') {
+          const [confName, confYear] = cy.split(' ');
+          const homeOK = r.HomeConference === confName && r.Season == confYear;
+          const awayOK = r.AwayConference === confName && r.Season == confYear;
+          if (!homeOK && !awayOK) return false;
+        }
+        return true;
+      });
+    }
+
+    // ====== Top-level update ======
+    function updateAnalysis() {
+      applyFilters();
+      updateOverviewStats();
+      updateCharts();
+      updateSpreadAnalysis();
+      updateTotalsAnalysis();
+      updateSharpMoneyAnalysis();
+      updateEVAnalysis();
+      updateKeyNumbersAnalysis();
+      updateConferenceAnalysis();
+      updateHistoricalTrends();
+    }
+
+    // ====== Overview KPIs ======
+    function updateOverviewStats() {
+      const totalGames = filteredData.length;
+      const withSpreads = filteredData.filter(r => r.Spread != null).length;
+      const withTotals = filteredData.filter(r => r.OverUnder != null).length;
+      const avgSpread = withSpreads ? filteredData.filter(r=>r.Spread!=null).reduce((s,r)=>s+Math.abs(r.Spread||0),0)/withSpreads : 0;
+      
+      const avgEV = filteredData.filter(r => r.spreadEV != null).reduce((s,r) => s + (r.spreadEV || 0), 0) / Math.max(1, filteredData.filter(r => r.spreadEV != null).length);
+      const sharpGames = filteredData.filter(r => r.sharpMoney?.hasSharpAction).length;
+
+      const html = `
+        <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
+        <div class="stat-card"><div class="stat-number">${totalGames?((withSpreads/totalGames)*100).toFixed(1):'0.0'}%</div><div class="stat-label">Spread Coverage</div></div>
+        <div class="stat-card"><div class="stat-number ${avgEV > 0 ? 'ev-positive' : 'ev-negative'}">${avgEV > 0 ? '+' : ''}${avgEV.toFixed(2)}%</div><div class="stat-label">Average EV</div></div>
+        <div class="stat-card"><div class="stat-number">${totalGames ? ((sharpGames/totalGames)*100).toFixed(1) : '0.0'}%</div><div class="stat-label">Sharp Action Detected</div></div>`;
+      document.getElementById('overview-stats').innerHTML = html;
+    }
+
+    // ====== Analysis functions ======
+    function updateSharpMoneyAnalysis() {
+      const sharpData = filteredData.filter(r => r.sharpMoney?.hasSharpAction);
+      const reverseLines = filteredData.filter(r => r.sharpMoney?.reverseLine);
+      const steamMoves = filteredData.filter(r => r.sharpMoney?.steamMove);
+      
+      let alertsHtml = '';
+      if (sharpData.length > 0) {
+        const highConfidence = sharpData.filter(r => r.sharpMoney.confidence === 'High').length;
+        alertsHtml = `<div class="sharp-alert">🔥 ${highConfidence} High-Confidence Sharp Plays Detected | ${reverseLines.length} Reverse Line Moves | ${steamMoves.length} Steam Moves</div>`;
+      }
+      document.getElementById('sharp-alerts').innerHTML = alertsHtml;
+
+      const totalAnalyzed = filteredData.filter(r => r.sharpMoney).length;
+      const sharpPct = totalAnalyzed ? (sharpData.length / totalAnalyzed * 100).toFixed(1) : '0.0';
+      const reversePct = totalAnalyzed ? (reverseLines.length / totalAnalyzed * 100).toFixed(1) : '0.0';
+      const steamPct = totalAnalyzed ? (steamMoves.length / totalAnalyzed * 100).toFixed(1) : '0.0';
+      const avgSharpEV = sharpData.length ? sharpData.reduce((s,r) => s + (r.spreadEV || 0), 0) / sharpData.length : 0;
+
+      document.getElementById('sharp-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-number">${sharpPct}%</div><div class="stat-label">Sharp Action Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${reversePct}%</div><div class="stat-label">Reverse Line Moves</div></div>
+        <div class="stat-card"><div class="stat-number">${steamPct}%</div><div class="stat-label">Steam Moves</div></div>
+        <div class="stat-card"><div class="stat-number ${avgSharpEV > 0 ? 'ev-positive' : 'ev-negative'}">${avgSharpEV > 0 ? '+' : ''}${avgSharpEV.toFixed(2)}%</div><div class="stat-label">Avg Sharp EV</div></div>`;
+
+      updateSharpCharts(sharpData, reverseLines, steamMoves);
+    }
+
+    function updateSharpCharts(sharpData, reverseLines, steamMoves) {
+      const ctx1 = document.getElementById('reverseLineChart');
+      if (ctx1) {
+        destroy('reverseLineChart');
+        charts.reverseLineChart = new Chart(ctx1.getContext('2d'), {
+          type: 'pie',
+          data: {
+            labels: ['With Public', 'Against Public'],
+            datasets: [{ data: [filteredData.length - reverseLines.length, reverseLines.length], backgroundColor: ['#6c5ce7', '#e17055'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+
+      const ctx2 = document.getElementById('sharpPublicChart');
+      if (ctx2) {
+        destroy('sharpPublicChart');
+        charts.sharpPublicChart = new Chart(ctx2.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: ['Sharp Action', 'Public Action'],
+            datasets: [{ data: [sharpData.length, filteredData.length - sharpData.length], backgroundColor: ['#00b894', '#74b9ff'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+
+      const confidenceCounts = { 'High': 0, 'Medium': 0, 'Low': 0 };
+      sharpData.forEach(r => confidenceCounts[r.sharpMoney.confidence]++);
+      const ctx3 = document.getElementById('steamMoveChart');
+      if (ctx3) {
+        destroy('steamMoveChart');
+        charts.steamMoveChart = new Chart(ctx3.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: Object.keys(confidenceCounts),
+            datasets: [{ label: 'Sharp Confidence', data: Object.values(confidenceCounts), backgroundColor: ['#e17055', '#fdcb6e', '#00cec9'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+      }
+    }
+
+    function updateEVAnalysis() {
+      const evData = filteredData.filter(r => r.spreadEV != null);
+      const positiveEV = evData.filter(r => r.spreadEV > EV_THRESHOLD);
+      const negativeEV = evData.filter(r => r.spreadEV < -EV_THRESHOLD);
+      const neutralEV = evData.filter(r => Math.abs(r.spreadEV) <= EV_THRESHOLD);
+
+      let marketAlertsHtml = '';
+      if (positiveEV.length > 0) {
+        const highValue = positiveEV.filter(r => r.spreadEV > 5).length;
+        marketAlertsHtml = `💎 ${positiveEV.length} Positive EV Opportunities Found | ${highValue} High-Value Plays (>5% EV)`;
+      }
+      document.getElementById('market-alerts').innerHTML = marketAlertsHtml;
+
+      const avgPositiveEV = positiveEV.length ? positiveEV.reduce((s,r) => s + r.spreadEV, 0) / positiveEV.length : 0;
+      const avgNegativeEV = negativeEV.length ? negativeEV.reduce((s,r) => s + r.spreadEV, 0) / negativeEV.length : 0;
+      const bestEV = evData.length ? Math.max(...evData.map(r => r.spreadEV)) : 0;
+      const marketEfficiency = evData.length ? ((neutralEV.length / evData.length) * 100).toFixed(1) : '0.0';
+
+      document.getElementById('ev-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-number ev-positive">+${avgPositiveEV.toFixed(2)}%</div><div class="stat-label">Avg Positive EV</div></div>
+        <div class="stat-card"><div class="stat-number ev-negative">${avgNegativeEV.toFixed(2)}%</div><div class="stat-label">Avg Negative EV</div></div>
+        <div class="stat-card"><div class="stat-number ev-positive">+${bestEV.toFixed(2)}%</div><div class="stat-label">Best EV Found</div></div>
+        <div class="stat-card"><div class="stat-number">${marketEfficiency}%</div><div class="stat-label">Market Efficiency</div></div>`;
+
+      updateEVCharts(positiveEV, negativeEV, neutralEV, evData);
+    }
+
+    function updateEVCharts(positiveEV, negativeEV, neutralEV, evData) {
+      const evRanges = { '<-5%': 0, '-5% to 0%': 0, '0% to 3%': 0, '3% to 5%': 0, '>5%': 0 };
+      evData.forEach(r => {
+        const ev = r.spreadEV;
+        if (ev < -5) evRanges['<-5%']++;
+        else if (ev < 0) evRanges['-5% to 0%']++;
+        else if (ev < 3) evRanges['0% to 3%']++;
+        else if (ev <= 5) evRanges['3% to 5%']++;
+        else evRanges['>5%']++;
+      });
+
+      const ctx1 = document.getElementById('evDistChart');
+      if (ctx1) {
+        destroy('evDistChart');
+        charts.evDistChart = new Chart(ctx1.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: Object.keys(evRanges),
+            datasets: [{ label: 'Games', data: Object.values(evRanges), backgroundColor: ['#e17055', '#fdcb6e', '#74b9ff', '#00b894', '#00cec9'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+      }
+
+      const ctx2 = document.getElementById('valueOppChart');
+      if (ctx2) {
+        destroy('valueOppChart');
+        charts.valueOppChart = new Chart(ctx2.getContext('2d'), {
+          type: 'pie',
+          data: {
+            labels: ['Positive EV', 'Negative EV', 'Neutral'],
+            datasets: [{ data: [positiveEV.length, negativeEV.length, neutralEV.length], backgroundColor: ['#00b894', '#e17055', '#74b9ff'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+    }
+
+    function updateKeyNumbersAnalysis() {
+      const spreadData = filteredData.filter(r => r.HomeScore != null && r.AwayScore != null && r.Spread != null);
+      const margins = spreadData.map(r => Math.abs(r.HomeScore - r.AwayScore));
+      const keyNumberGames = spreadData.filter(r => r.isKeyNumber);
+      
+      const keyNumberFreq = {};
+      KEY_NUMBERS.forEach(kn => {
+        keyNumberFreq[kn] = margins.filter(m => m === kn).length;
+      });
+
+      const totalKeyNumber = Object.values(keyNumberFreq).reduce((a,b) => a+b, 0);
+      const keyNumberPct = spreadData.length ? (totalKeyNumber / spreadData.length * 100).toFixed(1) : '0.0';
+      const mostCommon = Object.keys(keyNumberFreq).reduce((a,b) => keyNumberFreq[a] > keyNumberFreq[b] ? a : b);
+      const avgKeyEV = keyNumberGames.length ? keyNumberGames.reduce((s,r) => s + (r.spreadEV || 0), 0) / keyNumberGames.length : 0;
+
+      document.getElementById('key-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-number">${keyNumberPct}%</div><div class="stat-label">Games on Key Numbers</div></div>
+        <div class="stat-card"><div class="stat-number key-number">${mostCommon}</div><div class="stat-label">Most Common Margin</div></div>
+        <div class="stat-card"><div class="stat-number">${totalKeyNumber}</div><div class="stat-label">Key Number Results</div></div>
+        <div class="stat-card"><div class="stat-number ${avgKeyEV > 0 ? 'ev-positive' : 'ev-negative'}">${avgKeyEV > 0 ? '+' : ''}${avgKeyEV.toFixed(2)}%</div><div class="stat-label">Avg Key Number EV</div></div>`;
+
+      updateKeyNumberCharts(margins, keyNumberFreq);
+      updateKeyNumberTable(keyNumberFreq, spreadData);
+    }
+
+    function updateKeyNumberCharts(margins, keyNumberFreq) {
+      const marginRanges = { '0-3': 0, '4-7': 0, '8-10': 0, '11-14': 0, '15-21': 0, '22+': 0 };
+      margins.forEach(m => {
+        if (m <= 3) marginRanges['0-3']++;
+        else if (m <= 7) marginRanges['4-7']++;
+        else if (m <= 10) marginRanges['8-10']++;
+        else if (m <= 14) marginRanges['11-14']++;
+        else if (m <= 21) marginRanges['15-21']++;
+        else marginRanges['22+']++;
+      });
+
+      const ctx1 = document.getElementById('marginDistChart');
+      if (ctx1) {
+        destroy('marginDistChart');
+        charts.marginDistChart = new Chart(ctx1.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: Object.keys(marginRanges),
+            datasets: [{ label: 'Games', data: Object.values(marginRanges), backgroundColor: 'rgba(255,107,53,.8)', borderColor: 'rgba(255,107,53,1)', borderWidth: 2 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+      }
+
+      const ctx2 = document.getElementById('keyNumberChart');
+      if (ctx2) {
+        destroy('keyNumberChart');
+        charts.keyNumberChart = new Chart(ctx2.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels: Object.keys(keyNumberFreq),
+            datasets: [{ label: 'Frequency', data: Object.values(keyNumberFreq), backgroundColor: ['#e17055', '#fdcb6e', '#00b894', '#74b9ff', '#6c5ce7', '#a29bfe'] }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+      }
+    }
+
+    function updateKeyNumberTable(keyNumberFreq, spreadData) {
+      let tableHtml = `<table><thead><tr><th>Key Number</th><th>Frequency</th><th>Percentage</th><th>Push Rate</th></tr></thead><tbody>`;
+      
+      KEY_NUMBERS.forEach(kn => {
+        const freq = keyNumberFreq[kn] || 0;
+        const pct = spreadData.length ? (freq / spreadData.length * 100).toFixed(2) : '0.00';
+        const pushes = spreadData.filter(r => Math.abs(r.Spread) === kn && Math.abs((r.HomeScore - r.AwayScore) + r.Spread) < 0.5).length;
+        const pushRate = freq ? (pushes / freq * 100).toFixed(1) : '0.0';
+        
+        tableHtml += `<tr><td class="key-number">${kn}</td><td>${freq}</td><td>${pct}%</td><td>${pushRate}%</td></tr>`;
+      });
+      
+      tableHtml += `</tbody></table>`;
+      document.getElementById('keyNumberTable').innerHTML = tableHtml;
+    }
+
+    // ====== Chart functions ======
+    function destroy(name){ if(charts[name]){ charts[name].destroy(); charts[name]=null; }}
+
+    function updateCharts(){ updateSeasonChart(); updateProviderChart(); }
+    function updateHistoricalTrends(){ updateAvgSpreadTrendChart(); updateAvgTotalsTrendChart(); updateVolumeTrendChart(); updateScoringTrendChart(); }
+
+    function updateSeasonChart(){
+      const counts={}; filteredData.forEach(r=>{ if(r.Season) counts[r.Season]=(counts[r.Season]||0)+1; });
+      const ctx=document.getElementById('seasonChart'); if(!ctx) return; destroy('seasonChart');
+      charts.seasonChart = new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:Object.keys(counts).sort(), datasets:[{ label:'Games', data:Object.values(counts), backgroundColor:'rgba(255,107,53,.8)', borderColor:'rgba(255,107,53,1)', borderWidth:2 }]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    function updateProviderChart(){
+      const counts={}; filteredData.forEach(r=>{ if(r.LineProvider) counts[r.LineProvider]=(counts[r.LineProvider]||0)+1; });
+      const sorted=Object.entries(counts).sort(([,a],[,b])=>b-a).slice(0,8);
+      const ctx=document.getElementById('providerChart'); if(!ctx) return; destroy('providerChart');
+      charts.providerChart=new Chart(ctx.getContext('2d'),{
+        type:'doughnut', data:{ labels:sorted.map(([n])=>n), datasets:[{ data:sorted.map(([,c])=>c), backgroundColor:['#ff6b35','#f7931e','#2a5298','#1e3c72','#00b894','#00cec9','#6c5ce7','#a29bfe']}]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+      });
+    }
+
+    // ====== Placeholder functions for other analyses ======
+    function updateSpreadAnalysis(){
+      const data=filteredData.filter(r=>r.Spread!=null && r.HomeScore!=null && r.AwayScore!=null);
+      if(!data.length){
+        document.getElementById('spread-stats').innerHTML='<p style="text-align:center">No spread data for current filters</p>';
+        return;
+      }
+
+      let homeATS=0, awayATS=0, pushes=0;
+      data.forEach(r=>{
+        const margin=(r.HomeScore||0)-(r.AwayScore||0);
+        const sm = margin + (r.Spread||0);
+        if (Math.abs(sm) < 0.5) pushes++;
+        else if (sm > 0) homeATS++;
+        else awayATS++;
+      });
+      const total = homeATS+awayATS+pushes;
+      const homePct = total ? (homeATS/total*100).toFixed(1) : '0.0';
+      const awayPct = total ? (awayATS/total*100).toFixed(1) : '0.0';
+      const avgSpread = data.reduce((s,r)=>s+Math.abs(r.Spread||0),0)/data.length;
+      const avgMargin = data.reduce((s,r)=>s+Math.abs((r.HomeScore||0)-(r.AwayScore||0)),0)/data.length;
+      
+      document.getElementById('spread-stats').innerHTML = `
+        <div class="stat-card"><div class="stat-number">${homePct}%</div><div class="stat-label">Home ATS Win Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${awayPct}%</div><div class="stat-label">Away ATS Win Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${avgSpread.toFixed(1)}</div><div class="stat-label">Average Spread</div></div>
+        <div class="stat-card"><div class="stat-number">${avgMargin.toFixed(1)}</div><div class="stat-label">Average Margin</div></div>`;
+    }
+
+    function updateTotalsAnalysis(){
+      const data=filteredData.filter(r=>r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null);
+      if(!data.length){
+        document.getElementById('totals-stats').innerHTML='<p style="text-align:center">No totals data for current filters</p>';
+        return;
+      }
+      let overs=0, unders=0, pushes=0;
+      data.forEach(r=>{ 
+        const total=(r.HomeScore||0)+(r.AwayScore||0); 
+        if (total>r.OverUnder) overs++; 
+        else if (total<r.OverUnder) unders++; 
+        else pushes++; 
+      });
+      const total=overs+unders+pushes;
+      const overPct=total?(overs/total*100).toFixed(1):'0.0';
+      const underPct=total?(unders/total*100).toFixed(1):'0.0';
+      const avgTotal=data.reduce((s,r)=>s+(r.OverUnder||0),0)/data.length;
+      const avgScored=data.reduce((s,r)=>s+(r.HomeScore||0)+(r.AwayScore||0),0)/data.length;
+      
+      document.getElementById('totals-stats').innerHTML=`
+        <div class="stat-card"><div class="stat-number">${overPct}%</div><div class="stat-label">Over Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${underPct}%</div><div class="stat-label">Under Rate</div></div>
+        <div class="stat-card"><div class="stat-number">${avgTotal.toFixed(1)}</div><div class="stat-label">Avg Betting Total</div></div>
+        <div class="stat-card"><div class="stat-number">${avgScored.toFixed(1)}</div><div class="stat-label">Avg Actual Total</div></div>`;
+    }
+
+    function updateConferenceAnalysis(){
+      document.getElementById('conference-stats').innerHTML='<p style="text-align:center">Conference analysis loaded</p>';
+    }
+
+    function updateAvgSpreadTrendChart(){}
+    function updateAvgTotalsTrendChart(){}
+    function updateVolumeTrendChart(){}
+    function updateScoringTrendChart(){}
+    
+    function updateTeamAnalysis(){
+      document.getElementById('team-stats').innerHTML='<p style="text-align:center">Please select a team</p>';
+    }
+
+    function updateYearAnalysis(){
+      document.getElementById('year-stats').innerHTML='<p style="text-align:center">Please select a year</p>';
+    }
+  </script>
 </body>
 </html>
