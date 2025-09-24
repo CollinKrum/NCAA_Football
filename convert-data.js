@@ -1,5 +1,41 @@
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
+
+const NFL_DIVISIONS = {
+    'Arizona Cardinals': 'NFC West',
+    'Atlanta Falcons': 'NFC South',
+    'Baltimore Ravens': 'AFC North',
+    'Buffalo Bills': 'AFC East',
+    'Carolina Panthers': 'NFC South',
+    'Chicago Bears': 'NFC North',
+    'Cincinnati Bengals': 'AFC North',
+    'Cleveland Browns': 'AFC North',
+    'Dallas Cowboys': 'NFC East',
+    'Denver Broncos': 'AFC West',
+    'Detroit Lions': 'NFC North',
+    'Green Bay Packers': 'NFC North',
+    'Houston Texans': 'AFC South',
+    'Indianapolis Colts': 'AFC South',
+    'Jacksonville Jaguars': 'AFC South',
+    'Kansas City Chiefs': 'AFC West',
+    'Las Vegas Raiders': 'AFC West',
+    'Los Angeles Chargers': 'AFC West',
+    'Los Angeles Rams': 'NFC West',
+    'Miami Dolphins': 'AFC East',
+    'Minnesota Vikings': 'NFC North',
+    'New England Patriots': 'AFC East',
+    'New Orleans Saints': 'NFC South',
+    'New York Giants': 'NFC East',
+    'New York Jets': 'AFC East',
+    'Philadelphia Eagles': 'NFC East',
+    'Pittsburgh Steelers': 'AFC North',
+    'San Francisco 49ers': 'NFC West',
+    'Seattle Seahawks': 'NFC West',
+    'Tampa Bay Buccaneers': 'NFC South',
+    'Tennessee Titans': 'AFC South',
+    'Washington Commanders': 'NFC East'
+};
 
 console.log('🏈 NCAAF Data Conversion Script');
 console.log('================================');
@@ -129,6 +165,9 @@ if (jsonData.length > 10000) {
     });
 }
 
+// NFL conversion
+convertNFLWorkbook();
+
 console.log('\n🚀 Ready for deployment!');
 console.log('Next steps:');
 console.log('1. Copy the updated index.html file');
@@ -137,3 +176,200 @@ console.log('3. Add files: git add .');
 console.log('4. Commit: git commit -m "Deploy NCAAF Dashboard"');
 console.log('5. Push to GitHub and enable Pages');
 console.log('\nYour dashboard will be live shortly after deployment! 🎉');
+
+function convertNFLWorkbook() {
+    const nflFile = 'nfl.xlsx';
+    if (!fs.existsSync(nflFile)) {
+        console.log('\n🏟️ NFL workbook not found – skipping NFL conversion.');
+        return;
+    }
+
+    console.log('\n🏟️ Processing NFL workbook...');
+    let workbook;
+    try {
+        workbook = XLSX.readFile(nflFile, { cellDates: true });
+    } catch (error) {
+        console.error('❌ Failed to read nfl.xlsx:', error.message);
+        return;
+    }
+
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+        console.error('❌ NFL workbook has no sheets.');
+        return;
+    }
+
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: null });
+    console.log(`📝 Found ${rows.length} NFL rows`);
+
+    const normalized = normalizeNFLRows(rows);
+    if (!normalized.length) {
+        console.warn('⚠️ No NFL games could be normalized.');
+        return;
+    }
+
+    const nflOutput = path.join(dataDir, 'nfl-games.json');
+    fs.writeFileSync(nflOutput, JSON.stringify(normalized, null, 1));
+    console.log(`✅ Wrote ${normalized.length} NFL games → ${nflOutput}`);
+    console.log(`   File size: ${(fs.statSync(nflOutput).size / 1024 / 1024).toFixed(2)} MB`);
+
+    const seasons = [...new Set(normalized.map(game => game.Season))].filter(Boolean).sort((a, b) => a - b);
+    if (normalized.length > 1000) {
+        console.log('\n📂 Creating season-specific NFL files...');
+        seasons.forEach(season => {
+            const chunk = normalized.filter(game => game.Season === season);
+            const seasonFile = path.join(dataDir, `nfl-season-${season}.json`);
+            fs.writeFileSync(seasonFile, JSON.stringify(chunk, null, 1));
+            console.log(`   Season ${season}: ${chunk.length} games → ${seasonFile}`);
+        });
+    }
+
+    console.log('\n🏟️ NFL Data Summary:');
+    console.log(`   Seasons: ${seasons.join(', ')}`);
+    const divisions = [...new Set(normalized.flatMap(g => [g.HomeConference, g.AwayConference]).filter(Boolean))].sort();
+    console.log(`   Divisions: ${divisions.length}`);
+}
+
+function normalizeNFLRows(rows) {
+    const preprocessed = [];
+
+    rows.forEach(row => {
+        const dateValue = row['Date'];
+        const date = dateValue instanceof Date ? dateValue : parseDate(dateValue);
+        const home = cleanString(row['Home Team']);
+        const away = cleanString(row['Away Team']);
+        if (!date || !home || !away) return;
+
+        const season = deriveNFLSeason(date);
+        const weekKey = resolveWeekKey(date);
+
+        preprocessed.push({ row, date, season, weekKey });
+    });
+
+    // Assign sequential week numbers per season
+    const weekLookup = new Map();
+    const seasonWeekMap = new Map();
+
+    for (const { season, weekKey } of preprocessed) {
+        if (!seasonWeekMap.has(season)) {
+            seasonWeekMap.set(season, new Set());
+        }
+        seasonWeekMap.get(season).add(weekKey);
+    }
+
+    seasonWeekMap.forEach((weeks, season) => {
+        const sorted = Array.from(weeks).sort();
+        sorted.forEach((weekKey, index) => {
+            weekLookup.set(`${season}|${weekKey}`, index + 1);
+        });
+    });
+
+    return preprocessed.map(({ row, date, season, weekKey }) => {
+        const week = weekLookup.get(`${season}|${weekKey}`) ?? null;
+        const homeTeam = cleanString(row['Home Team']);
+        const awayTeam = cleanString(row['Away Team']);
+
+        const homeScore = toNumber(row['Home Score']);
+        const awayScore = toNumber(row['Away Score']);
+        const homeLineClose = toNumber(row['Home Line Close']);
+        const totalClose = toNumber(row['Total Score Close']);
+        const openingSpread = toNumber(row['Home Line Open']);
+        const openingTotal = toNumber(row['Total Score Open']);
+        const homeOddsClose = toNumber(row['Home Odds Close']);
+        const awayOddsClose = toNumber(row['Away Odds Close']);
+
+        const id = row.Id
+            || `${season}-${String(week || '').padStart(2, '0')}-${slugify(homeTeam)}-${slugify(awayTeam)}-${date.toISOString().slice(0, 10)}`;
+
+        const homeDivision = NFL_DIVISIONS[homeTeam] || null;
+        const awayDivision = NFL_DIVISIONS[awayTeam] || null;
+
+        return {
+            Id: id,
+            Season: season,
+            Week: week,
+            StartDate: date.toISOString(),
+            HomeTeam_x: homeTeam,
+            AwayTeam_x: awayTeam,
+            HomeConference: homeDivision,
+            AwayConference: awayDivision,
+            HomeScore: homeScore,
+            AwayScore: awayScore,
+            Spread: homeLineClose,
+            OverUnder: totalClose,
+            OpeningSpread: openingSpread,
+            OpeningOverUnder: openingTotal,
+            HomeMoneyline: decimalToAmerican(homeOddsClose),
+            AwayMoneyline: decimalToAmerican(awayOddsClose),
+            SeasonType: toBoolean(row['Playoff Game?']) ? 'Postseason' : 'Regular',
+            Completed: Number.isFinite(homeScore) && Number.isFinite(awayScore),
+            LineProvider: 'Consensus',
+            NeutralVenue: toBoolean(row['Neutral Venue?']) || null,
+            PlayoffGame: toBoolean(row['Playoff Game?']) || null,
+            Notes: cleanString(row['Notes']) || null
+        };
+    });
+}
+
+function parseDate(value) {
+    if (!value) return null;
+    if (typeof value === 'number' && XLSX.SSF?.parse_date_code) {
+        const parsed = XLSX.SSF.parse_date_code(value);
+        if (parsed) {
+            return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+        }
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+}
+
+function toBoolean(value) {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const str = String(value).trim().toLowerCase();
+    return ['y', 'yes', 'true', 't', '1'].includes(str);
+}
+
+function decimalToAmerican(decimal) {
+    const num = toNumber(decimal);
+    if (!Number.isFinite(num) || num <= 1) return null;
+    if (num >= 2) {
+        return Math.round((num - 1) * 100);
+    }
+    return -Math.round(100 / (num - 1));
+}
+
+function deriveNFLSeason(date) {
+    const month = date.getUTCMonth();
+    const year = date.getUTCFullYear();
+    return month < 3 ? year - 1 : year;
+}
+
+function resolveWeekKey(date) {
+    const copy = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+    const day = copy.getUTCDay();
+    const diff = (day + 6) % 7; // shift so Monday is start
+    copy.setUTCDate(copy.getUTCDate() - diff);
+    return copy.toISOString().slice(0, 10);
+}
+
+function slugify(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+function cleanString(value) {
+    if (value === null || value === undefined) return null;
+    const str = String(value).trim();
+    return str.length ? str : null;
+}
