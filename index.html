@@ -71,6 +71,9 @@
       <button class="tab active" data-tab="overview">📊 Overview</button>
       <button class="tab" data-tab="spreads">📈 Spread Analysis</button>
       <button class="tab" data-tab="totals">🎯 Over/Under Analysis</button>
+      <button class="tab" data-tab="moneyline">💰 Moneyline Analysis</button>
+      <button class="tab" data-tab="game-type">🏟️ Game Type Analysis</button>
+      <button class="tab" data-tab="line-movement">📉 Line Movement</button>
       <button class="tab" data-tab="trends">📅 Historical Trends</button>
       <button class="tab" data-tab="conferences">🏟️ Conference Analysis</button>
       <button class="tab" data-tab="teams">🏈 Team Analysis</button>
@@ -92,7 +95,7 @@
           <div class="filter-item"><label for="conferenceFilter">Conference:</label><select id="conferenceFilter" onchange="updateAnalysis()"><option value="all">All Conferences</option></select></div>
           <div class="filter-item"><label for="weekFilter">Week:</label><select id="weekFilter" onchange="updateAnalysis()"><option value="all">All Weeks</option></select></div>
           <div class="filter-item"><label for="teamFilter">Team:</label><select id="teamFilter" onchange="updateAnalysis()"><option value="all">All Teams</option></select></div>
-          <div class="filter-item"><label for="conferenceYearFilter">Conference by Year:</label><select id="conferenceYearFilter" onchange="updateAnalysis()"><option value="all">All Conference-Years</option></select></div>
+          <div class="filter-item"><label for="seasonTypeFilter">Season Type:</label><select id="seasonTypeFilter" onchange="updateAnalysis()"><option value="all">All Types</option></select></div>
         </div>
       </div>
       <div id="overview-stats" class="stats-grid"></div>
@@ -120,6 +123,31 @@
         <div class="chart-container"><div class="chart-title">⬆️ Over/Under Performance</div><div class="chart-wrapper"><canvas id="overUnderChart"></canvas></div></div>
         <div class="chart-container"><div class="chart-title">📈 Scoring Trends by Season</div><div class="chart-wrapper"><canvas id="scoringTrendChart"></canvas></div></div>
       </div>
+    </div>
+
+    <div id="moneyline" class="tab-content">
+      <div class="analysis-section"><h2>💰 Moneyline Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Moneyline odds reveal the implied probability of a team winning, allowing for a deeper look at profitability and upset potential.</div></div>
+      <div id="moneyline-stats" class="stats-grid"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">📈 Moneyline Winners by Odds Range</div><div class="chart-wrapper"><canvas id="moneylineWinChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">🏆 Upset Performance (ROI on Underdogs)</div><div class="chart-wrapper"><canvas id="upsetROIChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="game-type" class="tab-content">
+      <div class="analysis-section"><h2>🏟️ Game Type Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Different types of games (e.g., neutral site, conference) can have unique betting patterns and outcomes.</div></div>
+      <div id="game-type-stats" class="stats-grid"></div>
+      <div class="two-column">
+        <div class="chart-container"><div class="chart-title">📊 Neutral Site Game Performance</div><div class="chart-wrapper"><canvas id="neutralSiteChart"></canvas></div></div>
+        <div class="chart-container"><div class="chart-title">🤝 Conference Game ATS Performance</div><div class="chart-wrapper"><canvas id="conferenceGameChart"></canvas></div></div>
+      </div>
+    </div>
+
+    <div id="line-movement" class="tab-content">
+      <div class="analysis-section"><h2>📉 Line Movement Analysis</h2><div class="insight-box"><strong>Key Insights:</strong> Significant changes between opening and closing lines can indicate "sharp money" or new information affecting the market.</div></div>
+      <div id="line-movement-stats" class="stats-grid"></div>
+      <div class="chart-container"><div class="chart-title">📊 Opening vs. Closing Spread Difference</div><div class="chart-wrapper"><canvas id="spreadMovementChart"></canvas></div></div>
+      <div class="chart-container"><div class="chart-title">📈 Line Movement vs. Betting Outcome</div><div class="chart-wrapper"><canvas id="movementVsOutcomeChart"></canvas></div></div>
     </div>
 
     <div id="trends" class="tab-content">
@@ -199,6 +227,10 @@
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.getElementById(tabName)?.classList.add('active');
       document.querySelector('[data-tab="'+tabName+'"]')?.classList.add('active');
+      // If a new tab is shown, ensure its specific charts/analysis are updated
+      if (tabName === 'moneyline') updateMoneylineAnalysis();
+      if (tabName === 'game-type') updateGameTypeAnalysis();
+      if (tabName === 'line-movement') updateLineMovementAnalysis();
     }
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => showTab(tab.getAttribute('data-tab'))));
@@ -268,14 +300,10 @@
         const o2=document.createElement('option'); o2.value=t; o2.textContent=t; teamSelAnalysis.appendChild(o2);
       });
 
-      // Conference-Year
-      const confYears = new Set();
-      allData.forEach(r => {
-        if (r.HomeConference && r.Season) confYears.add(r.HomeConference+' '+r.Season);
-        if (r.AwayConference && r.Season) confYears.add(r.AwayConference+' '+r.Season);
-      });
-      const cySel = document.getElementById('conferenceYearFilter');
-      [...confYears].sort().forEach(cy => { const o=document.createElement('option'); o.value=cy; o.textContent=cy; cySel.appendChild(o); });
+      // Season Type
+      const seasonTypes = [...new Set(allData.map(r => r.SeasonType))].filter(Boolean).sort();
+      const seasonTypeSel = document.getElementById('seasonTypeFilter');
+      seasonTypes.forEach(s => { const o=document.createElement('option'); o.value=s; o.textContent=s.charAt(0).toUpperCase() + s.slice(1); seasonTypeSel.appendChild(o); });
     }
 
     function applyFilters() {
@@ -284,7 +312,7 @@
       const c = document.getElementById('conferenceFilter')?.value || 'all';
       const w = document.getElementById('weekFilter')?.value || 'all';
       const t = document.getElementById('teamFilter')?.value || 'all';
-      const cy = document.getElementById('conferenceYearFilter')?.value || 'all';
+      const st = document.getElementById('seasonTypeFilter')?.value || 'all';
 
       filteredData = allData.filter(r => {
         if (s !== 'all' && r.Season != s) return false;
@@ -292,12 +320,7 @@
         if (c !== 'all' && r.HomeConference !== c && r.AwayConference !== c) return false;
         if (w !== 'all' && r.Week != w) return false;
         if (t !== 'all' && r.HomeTeam_x !== t && r.AwayTeam_x !== t) return false;
-        if (cy !== 'all') {
-          const [confName, confYear] = cy.split(' ');
-          const homeOK = r.HomeConference === confName && r.Season == confYear;
-          const awayOK = r.AwayConference === confName && r.Season == confYear;
-          if (!homeOK && !awayOK) return false;
-        }
+        if (st !== 'all' && r.SeasonType !== st) return false;
         return true;
       });
     }
@@ -309,13 +332,117 @@
       updateCharts();
       updateSpreadAnalysis();
       updateTotalsAnalysis();
-      updateConferenceAnalysis();
+      updateMoneylineAnalysis();
+      updateGameTypeAnalysis();
+      updateLineMovementAnalysis();
       updateHistoricalTrends();
+      updateConferenceAnalysis();
     }
 
-    // ====== Overview KPIs ======
+    // ====== Helper Functions ======
+    function destroy(name){ if(charts[name]){ charts[name].destroy(); charts[name]=null; }}
+
+    // Convert American odds to decimal odds
+    function toDecimal(odds) {
+      if (!odds) return null;
+      if (odds > 0) return (odds / 100) + 1;
+      return (100 / Math.abs(odds)) + 1;
+    }
+
+    // Calculate profitability
+    function getProfitability(data, homeOddsCol, awayOddsCol, homeScoreCol, awayScoreCol) {
+      let totalBet = 0;
+      let totalReturn = 0;
+      let winningBets = 0;
+      let totalBets = 0;
+
+      data.forEach(game => {
+        const homeOdds = game[homeOddsCol];
+        const awayOdds = game[awayOddsCol];
+        const homeScore = game[homeScoreCol];
+        const awayScore = game[awayScoreCol];
+
+        if (homeOdds && awayOdds && homeScore != null && awayScore != null) {
+          totalBets++;
+          const winner = homeScore > awayScore ? 'home' : 'away';
+
+          if (homeOdds < 0) { // Home is favorite
+            totalBet += 100;
+            if (winner === 'home') {
+              totalReturn += 100 * toDecimal(homeOdds);
+              winningBets++;
+            }
+          } else { // Home is underdog
+            totalBet += 100;
+            if (winner === 'home') {
+              totalReturn += 100 * toDecimal(homeOdds);
+              winningBets++;
+            }
+          }
+
+          if (awayOdds < 0) { // Away is favorite
+            totalBet += 100;
+            if (winner === 'away') {
+              totalReturn += 100 * toDecimal(awayOdds);
+              winningBets++;
+            }
+          } else { // Away is underdog
+            totalBet += 100;
+            if (winner === 'away') {
+              totalReturn += 100 * toDecimal(awayOdds);
+              winningBets++;
+            }
+          }
+        }
+      });
+      const roi = totalBet > 0 ? ((totalReturn - totalBet) / totalBet) * 100 : 0;
+      const winRate = totalBets > 0 ? (winningBets / totalBets) * 100 : 0;
+      return { totalBets: totalBets/2, totalReturn: totalReturn/2, totalBet: totalBet/2, roi, winRate };
+    }
+
+    function getUpsetProfitability(data) {
+      let totalBet = 0;
+      let totalReturn = 0;
+      let winningBets = 0;
+      let totalUpsetOpportunities = 0;
+
+      data.forEach(game => {
+        const homeOdds = game.HomeMoneyline;
+        const awayOdds = game.AwayMoneyline;
+        const homeScore = game.HomeScore;
+        const awayScore = game.AwayScore;
+
+        if (homeOdds && awayOdds && homeScore != null && awayScore != null) {
+          if (homeOdds > 0) { // Home is underdog
+            totalUpsetOpportunities++;
+            totalBet += 100;
+            if (homeScore > awayScore) {
+              totalReturn += 100 * toDecimal(homeOdds);
+              winningBets++;
+            }
+          }
+          if (awayOdds > 0) { // Away is underdog
+            totalUpsetOpportunities++;
+            totalBet += 100;
+            if (awayScore > homeScore) {
+              totalReturn += 100 * toDecimal(awayOdds);
+              winningBets++;
+            }
+          }
+        }
+      });
+      const roi = totalBet > 0 ? ((totalReturn - totalBet) / totalBet) * 100 : 0;
+      const winRate = totalUpsetOpportunities > 0 ? (winningBets / totalUpsetOpportunities) * 100 : 0;
+      return { totalUpsetOpportunities, totalReturn, roi, winRate };
+    }
+
+
+    // ====== Tab-specific analysis updates ======
+
+    // Overview
     function updateOverviewStats() {
       const totalGames = filteredData.length;
+      const completedGames = filteredData.filter(r => r.Completed).length;
       const withSpreads = filteredData.filter(r => r.Spread != null).length;
       const withTotals = filteredData.filter(r => r.OverUnder != null).length;
       const avgSpread = withSpreads ? filteredData.filter(r=>r.Spread!=null).reduce((s,r)=>s+Math.abs(r.Spread||0),0)/withSpreads : 0;
@@ -323,36 +450,379 @@
 
       const html = `
         <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
-        <div class="stat-card"><div class="stat-number">${totalGames?((withSpreads/totalGames)*100).toFixed(1):'0.0'}%</div><div class="stat-label">Spread Coverage</div></div>
+        <div class="stat-card"><div class="stat-number">${completedGames.toLocaleString()}</div><div class="stat-label">Completed Games</div></div>
         <div class="stat-card"><div class="stat-number">${avgSpread?avgSpread.toFixed(1):'N/A'}</div><div class="stat-label">Avg Spread</div></div>
         <div class="stat-card"><div class="stat-number">${avgTotal?avgTotal.toFixed(1):'N/A'}</div><div class="stat-label">Avg Total</div></div>`;
       document.getElementById('overview-stats').innerHTML = html;
     }
 
-    // ====== Charts (Overview/Trends) ======
-    function destroy(name){ if(charts[name]){ charts[name].destroy(); charts[name]=null; }}
+    // Spread Analysis
+    function updateSpreadAnalysis() {
+      const spreadGames = filteredData.filter(r => r.Spread != null && r.Completed);
+      const atsData = spreadGames.map(r => ({
+        spread: r.Spread,
+        homeATS: r.HomeScore + r.Spread > r.AwayScore,
+        awayATS: r.AwayScore - r.Spread > r.HomeScore,
+        push: Math.abs(r.HomeScore - r.AwayScore) === Math.abs(r.Spread),
+        homeTeam: r.HomeTeam_x,
+        awayTeam: r.AwayTeam_x,
+      })).filter(r => !r.push);
 
-    function updateCharts(){ updateSeasonChart(); updateProviderChart(); }
-    function updateHistoricalTrends(){ updateAvgSpreadTrendChart(); updateAvgTotalsTrendChart(); updateVolumeTrendChart(); updateScoringTrendChart(); }
+      const homeATS = atsData.filter(r => r.homeATS).length;
+      const awayATS = atsData.filter(r => r.awayATS).length;
+      const totalATS = homeATS + awayATS;
+      const homeATS_perc = totalATS ? (homeATS / totalATS * 100).toFixed(1) : 0;
+      const awayATS_perc = totalATS ? (awayATS / totalATS * 100).toFixed(1) : 0;
+      const pushes = spreadGames.length - totalATS;
 
-    function updateSeasonChart(){
-      const counts={}; filteredData.forEach(r=>{ if(r.Season) counts[r.Season]=(counts[r.Season]||0)+1; });
-      const ctx=document.getElementById('seasonChart'); if(!ctx) return; destroy('seasonChart');
-      charts.seasonChart = new Chart(ctx.getContext('2d'), {
-        type:'bar', data:{ labels:Object.keys(counts).sort(), datasets:[{ label:'Games', data:Object.values(counts), backgroundColor:'rgba(255,107,53,.8)', borderColor:'rgba(255,107,53,1)', borderWidth:2 }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+      const html = `
+        <div class="stat-card"><div class="stat-number">${totalATS.toLocaleString()}</div><div class="stat-label">ATS Results</div></div>
+        <div class="stat-card"><div class="stat-number">${homeATS_perc}%</div><div class="stat-label">Home Team ATS Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${awayATS_perc}%</div><div class="stat-label">Away Team ATS Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${pushes}</div><div class="stat-label">Pushes</div></div>
+      `;
+      document.getElementById('spread-stats').innerHTML = html;
+
+      updateSpreadDistChart(spreadGames);
+      updateHomeAwayATSChart(atsData);
+      updateAtsSeasonChart(spreadGames);
+    }
+
+    function updateSpreadDistChart(data) {
+      const buckets = {'-30+':0,'-20 to -29':0,'-10 to -19':0,'-1 to -9':0,'1 to 9':0,'10 to 19':0,'20 to 29':0,'30+':0};
+      data.forEach(r => {
+        if(r.Spread!=null){
+          if(r.Spread < -29) buckets['-30+']++;
+          else if(r.Spread < -19) buckets['-20 to -29']++;
+          else if(r.Spread < -9) buckets['-10 to -19']++;
+          else if(r.Spread < 0) buckets['-1 to -9']++;
+          else if(r.Spread > 29) buckets['30+']++;
+          else if(r.Spread > 19) buckets['20 to 29']++;
+          else if(r.Spread > 9) buckets['10 to 19']++;
+          else if(r.Spread > 0) buckets['1 to 9']++;
+        }
+      });
+      const ctx=document.getElementById('spreadDistChart'); if(!ctx) return; destroy('spreadDistChart');
+      charts.spreadDistChart = new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:Object.keys(buckets), datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'rgba(255,107,53,.8)', borderColor:'rgba(255,107,53,1)', borderWidth:2 }]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true }, x:{ title:{display:true, text:'Spread Ranges'} } } }
       });
     }
 
-    function updateProviderChart(){
-      const counts={}; filteredData.forEach(r=>{ if(r.LineProvider) counts[r.LineProvider]=(counts[r.LineProvider]||0)+1; });
-      const sorted=Object.entries(counts).sort(([,a],[,b])=>b-a).slice(0,8);
-      const ctx=document.getElementById('providerChart'); if(!ctx) return; destroy('providerChart');
-      charts.providerChart=new Chart(ctx.getContext('2d'),{
-        type:'doughnut', data:{ labels:sorted.map(([n])=>n), datasets:[{ data:sorted.map(([,c])=>c), backgroundColor:['#ff6b35','#f7931e','#2a5298','#1e3c72','#00b894','#00cec9','#6c5ce7','#a29bfe']}]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+    function updateHomeAwayATSChart(data){
+      const homeWins = data.filter(r => r.homeATS).length;
+      const awayWins = data.filter(r => r.awayATS).length;
+      const homeLosses = data.filter(r => r.awayATS).length;
+      const awayLosses = data.filter(r => r.homeATS).length;
+      const ctx = document.getElementById('homeAwayATSChart'); if (!ctx) return; destroy('homeAwayATSChart');
+      charts.homeAwayATSChart = new Chart(ctx.getContext('2d'), {
+        type: 'bar', data: { labels: ['Home ATS', 'Away ATS'], datasets: [ { label: 'Wins', data: [homeWins, awayWins], backgroundColor: '#2a5298' }, { label: 'Losses', data: [homeLosses, awayLosses], backgroundColor: '#ff6b35' } ] },
+        options: { responsive:true, maintainAspectRatio:false, scales:{ x:{ stacked:true }, y:{ stacked:true, beginAtZero:true } } }
       });
     }
+
+    function updateAtsSeasonChart(data){
+      const seasons = [...new Set(data.map(r=>r.Season))].sort();
+      const atsWins = seasons.map(s => {
+        const seasonData = data.filter(r => r.Season === s && r.Completed);
+        const atsWins = seasonData.filter(r => (r.HomeScore + r.Spread > r.AwayScore) || (r.AwayScore - r.Spread > r.HomeScore)).length;
+        const total = seasonData.filter(r => Math.abs(r.HomeScore - r.AwayScore) !== Math.abs(r.Spread)).length;
+        return total ? (atsWins / total * 100) : 0;
+      });
+      const ctx=document.getElementById('atsSeasonChart'); if(!ctx) return; destroy('atsSeasonChart');
+      charts.atsSeasonChart = new Chart(ctx.getContext('2d'), {
+        type:'line', data:{ labels:seasons, datasets:[{ label:'ATS Win %', data:atsWins, borderColor:'#f7931e', backgroundColor:'rgba(247,147,30,.1)', fill:true }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ min:40, max:60, title:{display:true, text:'ATS Win %'} }, x:{ title:{display:true, text:'Season'} } } }
+      });
+    }
+
+    // Totals Analysis
+    function updateTotalsAnalysis() {
+      const totalsGames = filteredData.filter(r => r.OverUnder != null && r.Completed);
+      const overGames = totalsGames.filter(r => (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+      const underGames = totalsGames.filter(r => (r.HomeScore + r.AwayScore) < r.OverUnder).length;
+      const totalOutcomes = overGames + underGames;
+      const overPerc = totalOutcomes ? (overGames / totalOutcomes * 100).toFixed(1) : 0;
+      const underPerc = totalOutcomes ? (underGames / totalOutcomes * 100).toFixed(1) : 0;
+      const pushes = totalsGames.length - totalOutcomes;
+
+      const html = `
+        <div class="stat-card"><div class="stat-number">${totalOutcomes.toLocaleString()}</div><div class="stat-label">O/U Results</div></div>
+        <div class="stat-card"><div class="stat-number">${overPerc}%</div><div class="stat-label">Over Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${underPerc}%</div><div class="stat-label">Under Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${pushes}</div><div class="stat-label">Pushes</div></div>
+      `;
+      document.getElementById('totals-stats').innerHTML = html;
+
+      updateTotalsDistChart(totalsGames);
+      updateOverUnderChart(totalsGames);
+      updateScoringTrendChart(totalsGames);
+    }
+
+    function updateTotalsDistChart(data) {
+      const buckets = {'<35':0,'35-50':0,'50-65':0,'65-80':0,'>80':0};
+      data.forEach(r=>{ if(r.OverUnder!=null) {
+        if(r.OverUnder<35) buckets['<35']++;
+        else if (r.OverUnder<50) buckets['35-50']++;
+        else if (r.OverUnder<65) buckets['50-65']++;
+        else if (r.OverUnder<80) buckets['65-80']++;
+        else buckets['>80']++;
+      }});
+      const ctx=document.getElementById('totalsDistChart'); if(!ctx) return; destroy('totalsDistChart');
+      charts.totalsDistChart = new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:Object.keys(buckets), datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'rgba(0,184,148,.8)', borderColor:'rgba(0,184,148,1)', borderWidth:2 }]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true }, x:{ title:{display:true, text:'O/U Ranges'} } } }
+      });
+    }
+
+    function updateOverUnderChart(data){
+      const over = data.filter(r=>(r.HomeScore+r.AwayScore)>r.OverUnder).length;
+      const under = data.filter(r=>(r.HomeScore+r.AwayScore)<r.OverUnder).length;
+      const push = data.length - (over+under);
+      const ctx = document.getElementById('overUnderChart'); if(!ctx) return; destroy('overUnderChart');
+      charts.overUnderChart = new Chart(ctx.getContext('2d'), {
+        type:'pie', data:{ labels:['Over', 'Under', 'Push'], datasets:[{ data:[over,under,push], backgroundColor:['#00cec9','#6c5ce7','#a29bfe']}]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right' } } }
+      });
+    }
+
+    function updateScoringTrendChart(data){
+      const seasons = [...new Set(data.map(r=>r.Season))].sort();
+      const avgTotals = seasons.map(s => {
+        const seasonData = data.filter(r => r.Season === s && r.OverUnder!=null);
+        return seasonData.reduce((sum, r) => sum + r.OverUnder, 0) / seasonData.length;
+      });
+      const avgScores = seasons.map(s => {
+        const seasonData = data.filter(r => r.Season === s && r.HomeScore!=null);
+        return seasonData.reduce((sum, r) => sum + r.HomeScore + r.AwayScore, 0) / seasonData.length;
+      });
+      const ctx=document.getElementById('scoringTrendChart'); if(!ctx) return; destroy('scoringTrendChart');
+      charts.scoringTrendChart = new Chart(ctx.getContext('2d'), {
+        type:'line', data:{ labels:seasons, datasets:[{ label:'Avg Closing Total', data:avgTotals, borderColor:'#00b894', backgroundColor:'rgba(0,184,148,.1)', fill:true }, { label:'Avg Game Score', data:avgScores, borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.1)', fill:true }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ title:{display:true, text:'Points'} }, x:{ title:{display:true, text:'Season'} } } }
+      });
+    }
+
+    // Moneyline Analysis
+    function updateMoneylineAnalysis() {
+        const moneylineGames = filteredData.filter(r => r.HomeMoneyline != null && r.AwayMoneyline != null && r.Completed);
+        const { totalBets, roi } = getProfitability(moneylineGames, 'HomeMoneyline', 'AwayMoneyline', 'HomeScore', 'AwayScore');
+        const { totalUpsetOpportunities, roi: upsetRoi, winRate: upsetWinRate } = getUpsetProfitability(moneylineGames);
+        
+        const homeFavGames = moneylineGames.filter(r => r.HomeMoneyline < 0);
+        const homeFavWins = homeFavGames.filter(r => r.HomeScore > r.AwayScore).length;
+        const awayFavGames = moneylineGames.filter(r => r.AwayMoneyline < 0);
+        const awayFavWins = awayFavGames.filter(r => r.AwayScore > r.HomeScore).length;
+        
+        const favWinRate = (homeFavWins + awayFavWins) / (homeFavGames.length + awayFavGames.length) * 100;
+        
+        const html = `
+          <div class="stat-card"><div class="stat-number">${totalBets.toLocaleString()}</div><div class="stat-label">Total Moneyline Bets</div></div>
+          <div class="stat-card"><div class="stat-number">${favWinRate.toFixed(1)}%</div><div class="stat-label">Favorite Win %</div></div>
+          <div class="stat-card"><div class="stat-number">${upsetWinRate.toFixed(1)}%</div><div class="stat-label">Upset Win %</div></div>
+          <div class="stat-card"><div class="stat-number">${upsetRoi.toFixed(2)}%</div><div class="stat-label">Underdog Betting ROI</div></div>
+        `;
+        document.getElementById('moneyline-stats').innerHTML = html;
+
+        updateMoneylineWinChart(moneylineGames);
+        updateUpsetROIChart(moneylineGames);
+    }
+    
+    function updateMoneylineWinChart(data) {
+        const oddsBuckets = { '< -500': { bets: 0, wins: 0 }, '-500 to -200': { bets: 0, wins: 0 }, '-199 to -101': { bets: 0, wins: 0 }, '+100 to +199': { bets: 0, wins: 0 }, '+200 to +499': { bets: 0, wins: 0 }, '> +500': { bets: 0, wins: 0 } };
+        data.forEach(game => {
+          const homeWin = game.HomeScore > game.AwayScore;
+          const awayWin = game.AwayScore > game.HomeScore;
+          if (game.HomeMoneyline != null) {
+            let bucket;
+            if (game.HomeMoneyline < -500) bucket = '< -500';
+            else if (game.HomeMoneyline >= -500 && game.HomeMoneyline <= -200) bucket = '-500 to -200';
+            else if (game.HomeMoneyline > -200 && game.HomeMoneyline < 0) bucket = '-199 to -101';
+            else if (game.HomeMoneyline >= 100 && game.HomeMoneyline <= 199) bucket = '+100 to +199';
+            else if (game.HomeMoneyline >= 200 && game.HomeMoneyline <= 499) bucket = '+200 to +499';
+            else if (game.HomeMoneyline > 500) bucket = '> +500';
+            
+            if (bucket) {
+              oddsBuckets[bucket].bets++;
+              if (homeWin) oddsBuckets[bucket].wins++;
+            }
+          }
+          if (game.AwayMoneyline != null) {
+            let bucket;
+            if (game.AwayMoneyline < -500) bucket = '< -500';
+            else if (game.AwayMoneyline >= -500 && game.AwayMoneyline <= -200) bucket = '-500 to -200';
+            else if (game.AwayMoneyline > -200 && game.AwayMoneyline < 0) bucket = '-199 to -101';
+            else if (game.AwayMoneyline >= 100 && game.AwayMoneyline <= 199) bucket = '+100 to +199';
+            else if (game.AwayMoneyline >= 200 && game.AwayMoneyline <= 499) bucket = '+200 to +499';
+            else if (game.AwayMoneyline > 500) bucket = '> +500';
+            
+            if (bucket) {
+              oddsBuckets[bucket].bets++;
+              if (awayWin) oddsBuckets[bucket].wins++;
+            }
+          }
+        });
+
+        const labels = Object.keys(oddsBuckets);
+        const winRates = labels.map(l => {
+          const { bets, wins } = oddsBuckets[l];
+          return bets > 0 ? (wins / bets) * 100 : 0;
+        });
+
+        const ctx = document.getElementById('moneylineWinChart'); if (!ctx) return; destroy('moneylineWinChart');
+        charts.moneylineWinChart = new Chart(ctx.getContext('2d'), {
+            type: 'bar', data: { labels, datasets: [{ label: 'Win %', data: winRates, backgroundColor: '#00cec9' }] },
+            options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Win %'}, max:100 }, x:{ title:{display:true, text:'Moneyline Odds Range'} } } }
+        });
+    }
+
+    function updateUpsetROIChart(data) {
+        const underdogGames = data.filter(game => game.HomeMoneyline > 0 || game.AwayMoneyline > 0);
+        const seasons = [...new Set(underdogGames.map(r => r.Season))].sort();
+        const roiBySeason = seasons.map(s => {
+          const seasonGames = underdogGames.filter(r => r.Season === s);
+          const { roi } = getUpsetProfitability(seasonGames);
+          return roi;
+        });
+        
+        const ctx = document.getElementById('upsetROIChart'); if (!ctx) return; destroy('upsetROIChart');
+        charts.upsetROIChart = new Chart(ctx.getContext('2d'), {
+            type: 'line', data: { labels: seasons, datasets: [{ label: 'Underdog Betting ROI %', data: roiBySeason, borderColor: '#f7931e', backgroundColor: 'rgba(247, 147, 30, 0.2)', fill: true }] },
+            options: { responsive:true, maintainAspectRatio:false, scales: { y: { title: { display: true, text: 'ROI %' } }, x: { title: { display: true, text: 'Season' } } } }
+        });
+    }
+
+    // Game Type Analysis
+    function updateGameTypeAnalysis() {
+        const completedGames = filteredData.filter(r => r.Completed);
+        const neutralSiteGames = completedGames.filter(r => r.NeutralSite);
+        const nonNeutralSiteGames = completedGames.filter(r => !r.NeutralSite);
+        const conferenceGames = completedGames.filter(r => r.ConferenceGame);
+        const nonConferenceGames = completedGames.filter(r => !r.ConferenceGame);
+
+        const neutralSiteATS = neutralSiteGames.filter(g => (g.HomeScore+g.Spread > g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread > g.HomeScore && g.Spread > 0)).length;
+        const neutralSiteTotal = neutralSiteGames.filter(g => g.Spread != null && Math.abs(g.HomeScore - g.AwayScore) !== Math.abs(g.Spread)).length;
+        const neutralSiteATS_perc = neutralSiteTotal ? (neutralSiteATS / neutralSiteTotal * 100).toFixed(1) : 0;
+
+        const confATS = conferenceGames.filter(g => (g.HomeScore+g.Spread > g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread > g.HomeScore && g.Spread > 0)).length;
+        const confTotal = conferenceGames.filter(g => g.Spread != null && Math.abs(g.HomeScore - g.AwayScore) !== Math.abs(g.Spread)).length;
+        const confATS_perc = confTotal ? (confATS / confTotal * 100).toFixed(1) : 0;
+        
+        const html = `
+          <div class="stat-card"><div class="stat-number">${neutralSiteGames.length.toLocaleString()}</div><div class="stat-label">Neutral Site Games</div></div>
+          <div class="stat-card"><div class="stat-number">${neutralSiteATS_perc}%</div><div class="stat-label">Neutral Site ATS Win %</div></div>
+          <div class="stat-card"><div class="stat-number">${conferenceGames.length.toLocaleString()}</div><div class="stat-label">Conference Games</div></div>
+          <div class="stat-card"><div class="stat-number">${confATS_perc}%</div><div class="stat-label">Conference Game ATS Win %</div></div>
+        `;
+        document.getElementById('game-type-stats').innerHTML = html;
+
+        updateNeutralSiteChart(neutralSiteGames, nonNeutralSiteGames);
+        updateConferenceGameChart(conferenceGames, nonConferenceGames);
+    }
+    
+    function updateNeutralSiteChart(neutralData, nonNeutralData) {
+        const neutralOver = neutralData.filter(r => r.HomeScore != null && r.OverUnder != null && (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+        const neutralUnder = neutralData.filter(r => r.HomeScore != null && r.OverUnder != null && (r.HomeScore + r.AwayScore) < r.OverUnder).length;
+        const nonNeutralOver = nonNeutralData.filter(r => r.HomeScore != null && r.OverUnder != null && (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+        const nonNeutralUnder = nonNeutralData.filter(r => r.HomeScore != null && r.OverUnder != null && (r.HomeScore + r.AwayScore) < r.OverUnder).length;
+        
+        const neutralLabels = ['Over', 'Under'];
+        const nonNeutralLabels = ['Over', 'Under'];
+        
+        const ctx = document.getElementById('neutralSiteChart'); if (!ctx) return; destroy('neutralSiteChart');
+        charts.neutralSiteChart = new Chart(ctx.getContext('2d'), {
+            type: 'doughnut', data: {
+                labels: ['Neutral Site Over', 'Neutral Site Under', 'Non-Neutral Site Over', 'Non-Neutral Site Under'],
+                datasets: [
+                    { data: [neutralOver, neutralUnder, 0, 0], backgroundColor: ['#00b894', '#ff6b35'], label: 'Neutral Site' },
+                    { data: [0, 0, nonNeutralOver, nonNeutralUnder], backgroundColor: ['#00cec9', '#f7931e'], label: 'Non-Neutral Site' }
+                ]
+            },
+            options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position: 'bottom' } } }
+        });
+    }
+
+    function updateConferenceGameChart(confData, nonConfData) {
+        const confATS = confData.filter(g => (g.HomeScore+g.Spread > g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread > g.HomeScore && g.Spread > 0)).length;
+        const confNotATS = confData.filter(g => (g.HomeScore+g.Spread < g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread < g.HomeScore && g.Spread > 0)).length;
+        const nonConfATS = nonConfData.filter(g => (g.HomeScore+g.Spread > g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread > g.HomeScore && g.Spread > 0)).length;
+        const nonConfNotATS = nonConfData.filter(g => (g.HomeScore+g.Spread < g.AwayScore && g.Spread < 0) || (g.AwayScore-g.Spread < g.HomeScore && g.Spread > 0)).length;
+
+        const ctx = document.getElementById('conferenceGameChart'); if (!ctx) return; destroy('conferenceGameChart');
+        charts.conferenceGameChart = new Chart(ctx.getContext('2d'), {
+            type: 'bar', data: {
+                labels: ['Conference Games', 'Non-Conference Games'],
+                datasets: [
+                    { label: 'ATS Wins', data: [confATS, nonConfATS], backgroundColor: '#2a5298' },
+                    { label: 'ATS Losses', data: [confNotATS, nonConfNotATS], backgroundColor: '#ff6b35' }
+                ]
+            },
+            options: { responsive:true, maintainAspectRatio:false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        });
+    }
+
+    // Line Movement Analysis
+    function updateLineMovementAnalysis() {
+        const gamesWithMovement = filteredData.filter(r => r.OpeningSpread != null && r.Spread != null && r.Completed);
+        const spreadMovement = gamesWithMovement.map(g => g.Spread - g.OpeningSpread);
+        const totalMovement = gamesWithMovement.map(g => g.OverUnder - g.OpeningOverUnder);
+        
+        const html = `
+          <div class="stat-card"><div class="stat-number">${gamesWithMovement.length.toLocaleString()}</div><div class="stat-label">Games with Spread Movement</div></div>
+          <div class="stat-card"><div class="stat-number">${(spreadMovement.filter(m => m > 0).length / gamesWithMovement.length * 100).toFixed(1)}%</div><div class="stat-label">Spread Moved Toward Favorite</div></div>
+          <div class="stat-card"><div class="stat-number">${(totalMovement.filter(m => m > 0).length / gamesWithMovement.length * 100).toFixed(1)}%</div><div class="stat-label">Total Moved Up (Over)</div></div>
+        `;
+        document.getElementById('line-movement-stats').innerHTML = html;
+
+        updateSpreadMovementChart(gamesWithMovement);
+        updateMovementVsOutcomeChart(gamesWithMovement);
+    }
+    
+    function updateSpreadMovementChart(data) {
+        const buckets = { '<-3': 0, '-3 to -1': 0, '0': 0, '1 to 3': 0, '>3': 0 };
+        data.forEach(g => {
+            const movement = g.Spread - g.OpeningSpread;
+            if (movement < -3) buckets['<-3']++;
+            else if (movement >= -3 && movement < 0) buckets['-3 to -1']++;
+            else if (movement === 0) buckets['0']++;
+            else if (movement > 0 && movement <= 3) buckets['1 to 3']++;
+            else if (movement > 3) buckets['>3']++;
+        });
+
+        const ctx = document.getElementById('spreadMovementChart'); if (!ctx) return; destroy('spreadMovementChart');
+        charts.spreadMovementChart = new Chart(ctx.getContext('2d'), {
+            type: 'bar', data: { labels: Object.keys(buckets), datasets: [{ label: 'Number of Games', data: Object.values(buckets), backgroundColor: '#6c5ce7' }] },
+            options: { responsive:true, maintainAspectRatio:false, scales: { y: { beginAtZero: true }, x: { title: { display: true, text: 'Spread Movement (Points)' } } } }
+        });
+    }
+
+    function updateMovementVsOutcomeChart(data) {
+        const movedToFavoriteWins = data.filter(g => {
+            if (g.OpeningSpread < g.Spread) { // Spread moved towards favorite
+                return (g.HomeScore > g.AwayScore && g.Spread < 0) || (g.AwayScore > g.HomeScore && g.Spread > 0);
+            }
+            return false;
+        }).length;
+        
+        const movedToUnderdogWins = data.filter(g => {
+            if (g.OpeningSpread > g.Spread) { // Spread moved towards underdog
+                return (g.HomeScore > g.AwayScore && g.Spread < 0) || (g.AwayScore > g.HomeScore && g.Spread > 0);
+            }
+            return false;
+        }).length;
+        
+        const totalMoved = data.filter(g => g.OpeningSpread !== g.Spread).length;
+        
+        const ctx = document.getElementById('movementVsOutcomeChart'); if (!ctx) return; destroy('movementVsOutcomeChart');
+        charts.movementVsOutcomeChart = new Chart(ctx.getContext('2d'), {
+            type: 'pie', data: { labels: ['Moved to Favorite (Win)', 'Moved to Underdog (Win)'], datasets: [{ data: [movedToFavoriteWins, movedToUnderdogWins], backgroundColor: ['#2a5298', '#ff6b35'] }] },
+            options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position: 'right' } } }
+        });
+    }
+
+
+    // Historical Trends
+    function updateHistoricalTrends(){ updateAvgSpreadTrendChart(); updateAvgTotalsTrendChart(); updateVolumeTrendChart(); }
 
     function updateAvgSpreadTrendChart(){
       const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.Spread!=null){ (bucket[r.Season] ||= []).push(Math.abs(r.Spread)); }});
@@ -369,363 +839,288 @@
     }
 
     function updateVolumeTrendChart(){
-      const counts={}; filteredData.forEach(r=>{ if(r.Season) counts[r.Season]=(counts[r.Season]||0)+1; });
-      const data=Object.entries(counts).sort(([a],[b])=>a-b);
+      const counts={}; filteredData.forEach(r=>{ if(r.Season && r.OverUnder!=null) counts[r.Season]=(counts[r.Season]||0)+1; });
+      const data=Object.entries(counts).sort(([a],[b])=>a-b).map(([s,c])=>({s, c}));
       const ctx=document.getElementById('volumeTrendChart'); if(!ctx||!data.length) return; destroy('volumeTrendChart');
-      charts.volumeTrendChart=new Chart(ctx.getContext('2d'),{ type:'bar', data:{ labels:data.map(([s])=>s), datasets:[{ label:'Games', data:data.map(([,c])=>c), backgroundColor:'rgba(108,92,231,.8)', borderColor:'rgba(108,92,231,1)', borderWidth:2 }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Number of Games'} }, x:{ title:{display:true, text:'Season'} } } } });
+      charts.volumeTrendChart=new Chart(ctx.getContext('2d'),{ type:'bar', data:{ labels:data.map(d=>d.s), datasets:[{ label:'Games with Totals', data:data.map(d=>d.c), backgroundColor:'rgba(108,92,231,.8)', borderColor:'rgba(108,92,231,1)', borderWidth:2 }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Games with Totals'} }, x:{ title:{display:true, text:'Season'} } } } });
     }
 
-    function updateScoringTrendChart(){
-      const bucket={}; filteredData.forEach(r=>{ if(r.Season && r.HomeScore!=null && r.AwayScore!=null){ (bucket[r.Season] ||= {sum:0,g:0}); bucket[r.Season].sum += r.HomeScore + r.AwayScore; bucket[r.Season].g++; }});
-      const data=Object.entries(bucket).sort(([a],[b])=>a-b).map(([s,o])=>({s, v:o.sum/o.g}));
-      const ctx=document.getElementById('scoringTrendChart'); if(!ctx||!data.length) return; destroy('scoringTrendChart');
-      charts.scoringTrendChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:data.map(d=>d.s), datasets:[{ label:'Average Points Per Game', data:data.map(d=>d.v), borderColor:'#e17055', backgroundColor:'rgba(225,112,85,.1)', borderWidth:3, fill:true }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Average Total Points'} }, x:{ title:{display:true, text:'Season'} } } } });
-    }
+    // Conference Analysis
+    function updateConferenceAnalysis() {
+      const confData = filteredData.filter(r => r.HomeConference && r.AwayConference && r.Completed);
+      const conferences = [...new Set(confData.map(r => r.HomeConference))].sort();
 
-    // ====== Spread Analysis ======
-    function updateSpreadAnalysis(){
-      const data=filteredData.filter(r=>r.Spread!=null && r.HomeScore!=null && r.AwayScore!=null);
-      if(!data.length){
-        document.getElementById('spread-stats').innerHTML='<p style="text-align:center">No spread data for current filters</p>';
-        destroy('spreadDistChart');
-        destroy('homeAwayATSChart');
-        destroy('atsSeasonChart');
-
-        const spreadCanvas=document.getElementById('spreadDistChart');
-        if(spreadCanvas){
-          const ctx=spreadCanvas.getContext('2d');
-          if(ctx) ctx.clearRect(0,0,spreadCanvas.width,spreadCanvas.height);
-        }
-        const homeAwayCanvas=document.getElementById('homeAwayATSChart');
-        if(homeAwayCanvas){
-          const ctx=homeAwayCanvas.getContext('2d');
-          if(ctx) ctx.clearRect(0,0,homeAwayCanvas.width,homeAwayCanvas.height);
-        }
-        const atsSeasonCanvas=document.getElementById('atsSeasonChart');
-        if(atsSeasonCanvas){
-          const ctx=atsSeasonCanvas.getContext('2d');
-          if(ctx) ctx.clearRect(0,0,atsSeasonCanvas.width,atsSeasonCanvas.height);
-        }
-        return;
-      }
-
-      let homeATS=0, awayATS=0, pushes=0;
-      data.forEach(r=>{
-        const margin=(r.HomeScore||0)-(r.AwayScore||0);
-        const sm = margin + (r.Spread||0);
-        if (Math.abs(sm) < 0.5) pushes++;
-        else if (sm > 0) homeATS++;
-        else awayATS++;
-      });
-      const total = homeATS+awayATS+pushes;
-      const homePct = total ? (homeATS/total*100).toFixed(1) : '0.0';
-      const awayPct = total ? (awayATS/total*100).toFixed(1) : '0.0';
-      const avgSpread = data.reduce((s,r)=>s+Math.abs(r.Spread||0),0)/data.length;
-      const avgMargin = data.reduce((s,r)=>s+Math.abs((r.HomeScore||0)-(r.AwayScore||0)),0)/data.length;
-      document.getElementById('spread-stats').innerHTML = `
-        <div class="stat-card"><div class="stat-number">${homePct}%</div><div class="stat-label">Home ATS Win Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${awayPct}%</div><div class="stat-label">Away ATS Win Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${avgSpread.toFixed(1)}</div><div class="stat-label">Average Spread</div></div>
-        <div class="stat-card"><div class="stat-number">${avgMargin.toFixed(1)}</div><div class="stat-label">Average Margin</div></div>`;
-      updateSpreadDistChart(data);
-      updateHomeAwayATSChart(homeATS, awayATS, pushes);
-      updateATSSeasonChart(data);
-    }
-
-    function updateSpreadDistChart(data){
-      const ranges={'0-3':0,'3.5-7':0,'7.5-10':0,'10.5-14':0,'14.5-21':0,'21.5-28':0,'28.5+':0};
-      data.forEach(r=>{ const s=Math.abs(r.Spread); if (s<=3) ranges['0-3']++; else if (s<=7) ranges['3.5-7']++; else if (s<=10) ranges['7.5-10']++; else if (s<=14) ranges['10.5-14']++; else if (s<=21) ranges['14.5-21']++; else if (s<=28) ranges['21.5-28']++; else ranges['28.5+']++; });
-      const ctx=document.getElementById('spreadDistChart'); if(!ctx) return; destroy('spreadDistChart');
-      charts.spreadDistChart=new Chart(ctx.getContext('2d'),{
-        type:'bar', data:{ labels:Object.keys(ranges), datasets:[{ label:'Games', data:Object.values(ranges), backgroundColor:'rgba(42,82,152,.8)', borderColor:'rgba(42,82,152,1)', borderWidth:2 }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
-      });
-    }
-
-    function updateHomeAwayATSChart(homeATS, awayATS, pushes){
-      const ctx=document.getElementById('homeAwayATSChart'); if(!ctx) return; destroy('homeAwayATSChart');
-      charts.homeAwayATSChart=new Chart(ctx.getContext('2d'),{
-        type:'pie', data:{ labels:['Home ATS Wins','Away ATS Wins','Pushes'], datasets:[{ data:[homeATS,awayATS,pushes], backgroundColor:['#00b894','#ff6b35','#ddd'] }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
-      });
-    }
-
-    function updateATSSeasonChart(data){
-      const seasonData={}; data.forEach(r=>{ const season=r.Season; if(!seasonData[season]){ seasonData[season]={home:0,away:0,pushes:0,total:0}; } const margin=(r.HomeScore||0)-(r.AwayScore||0); const sm=margin+(r.Spread||0); if(Math.abs(sm)<0.5) seasonData[season].pushes++; else if(sm>0) seasonData[season].home++; else seasonData[season].away++; seasonData[season].total++; });
-      const seasons=Object.keys(seasonData).sort(); const homePercs=seasons.map(s=> (seasonData[s].home/seasonData[s].total*100).toFixed(1) ); const awayPercs=seasons.map(s=> (seasonData[s].away/seasonData[s].total*100).toFixed(1) );
-      const ctx=document.getElementById('atsSeasonChart'); if(!ctx) return; destroy('atsSeasonChart');
-      charts.atsSeasonChart=new Chart(ctx.getContext('2d'),{
-        type:'line', data:{ labels:seasons, datasets:[{ label:'Home ATS %', data:homePercs, borderColor:'#00b894', backgroundColor:'rgba(0,184,148,.2)', fill:false }, { label:'Away ATS %', data:awayPercs, borderColor:'#ff6b35', backgroundColor:'rgba(255,107,53,.2)', fill:false }]},
-        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } } }
-      });
-    }
-
-    // ====== Over/Under Analysis ======
-    function updateTotalsAnalysis(){
-      const data=filteredData.filter(r=>r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null);
-      if(!data.length){
-        document.getElementById('totals-stats').innerHTML='<p style="text-align:center">No totals data for current filters</p>';
-        destroy('totalsDistChart');
-        destroy('overUnderChart');
-        return;
-      }
-      let overs=0, unders=0, pushes=0;
-      data.forEach(r=>{
-        const total=r.HomeScore+r.AwayScore;
-        const overUnder=r.OverUnder;
-        if(total>overUnder) overs++;
-        else if(total<overUnder) unders++;
-        else pushes++;
-      });
-      const totalGames=overs+unders+pushes;
-      const overPct=totalGames?(overs/totalGames*100).toFixed(1):'0.0';
-      const underPct=totalGames?(unders/totalGames*100).toFixed(1):'0.0';
-      const avgTotal=data.reduce((s,r)=>s+(r.OverUnder||0),0)/data.length;
-      const avgScore=data.reduce((s,r)=>s+(r.HomeScore+r.AwayScore),0)/data.length;
-      document.getElementById('totals-stats').innerHTML=`
-        <div class="stat-card"><div class="stat-number">${overPct}%</div><div class="stat-label">Over Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${underPct}%</div><div class="stat-label">Under Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${avgTotal.toFixed(1)}</div><div class="stat-label">Avg Line</div></div>
-        <div class="stat-card"><div class="stat-number">${avgScore.toFixed(1)}</div><div class="stat-label">Avg Total Score</div></div>`;
-      updateTotalsDistChart(data);
-      updateOverUnderChart(overs, unders, pushes);
-    }
-    function updateTotalsDistChart(data){
-      const ranges={'<35':0,'35-50':0,'50-65':0,'65-80':0,'>80':0};
-      data.forEach(r=>{ const tot=r.OverUnder; if(tot<35) ranges['<35']++; else if (tot<50) ranges['35-50']++; else if (tot<65) ranges['50-65']++; else if (tot<80) ranges['65-80']++; else ranges['>80']++; });
-      const ctx=document.getElementById('totalsDistChart'); if(!ctx) return; destroy('totalsDistChart');
-      charts.totalsDistChart=new Chart(ctx.getContext('2d'),{
-        type:'bar', data:{ labels:Object.keys(ranges), datasets:[{ label:'Games', data:Object.values(ranges), backgroundColor:'rgba(255,107,53,.8)', borderColor:'rgba(255,107,53,1)', borderWidth:2 }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
-      });
-    }
-    function updateOverUnderChart(overs, unders, pushes){
-      const ctx=document.getElementById('overUnderChart'); if(!ctx) return; destroy('overUnderChart');
-      charts.overUnderChart=new Chart(ctx.getContext('2d'),{
-        type:'pie', data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[overs,unders,pushes], backgroundColor:['#f7931e','#1e3c72','#ddd'] }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
-      });
-    }
-
-    // ====== Conference Analysis ======
-    function updateConferenceAnalysis(){
-      const confStats={};
-      filteredData.forEach(r=>{
-        const hConf=r.HomeConference; const aConf=r.AwayConference;
-        if(hConf) { if(!confStats[hConf]) confStats[hConf]={games:0,wins:0,losses:0,spreads:[],totals:[]}; confStats[hConf].games++; }
-        if(aConf) { if(!confStats[aConf]) confStats[aConf]={games:0,wins:0,losses:0,spreads:[],totals:[]}; confStats[aConf].games++; }
-        if(r.HomeScore!=null && r.AwayScore!=null){
-          if(r.HomeScore>r.AwayScore) { if(hConf) confStats[hConf].wins++; if(aConf) confStats[aConf].losses++; }
-          else if(r.HomeScore<r.AwayScore) { if(hConf) confStats[hConf].losses++; if(aConf) confStats[aConf].wins++; }
-        }
-        if(r.Spread!=null){
-          const margin=(r.HomeScore||0)-(r.AwayScore||0);
-          const sm = margin+(r.Spread||0);
-          if(sm>0) { if(hConf) confStats[hConf].spreads.push(1); if(aConf) confStats[aConf].spreads.push(0); }
-          else if(sm<0) { if(hConf) confStats[hConf].spreads.push(0); if(aConf) confStats[aConf].spreads.push(1); }
-          else { if(hConf) confStats[hConf].spreads.push(0.5); if(aConf) confStats[aConf].spreads.push(0.5); }
-        }
-        if(r.OverUnder!=null){
-          const total=r.HomeScore+r.AwayScore;
-          if(total > r.OverUnder) { if(hConf) confStats[hConf].totals.push(1); if(aConf) confStats[aConf].totals.push(1); }
-          else if(total < r.OverUnder) { if(hConf) confStats[hConf].totals.push(0); if(aConf) confStats[aConf].totals.push(0); }
-          else { if(hConf) confStats[hConf].totals.push(0.5); if(aConf) confStats[aConf].totals.push(0.5); }
-        }
+      const stats = conferences.map(c => {
+        const confGames = confData.filter(r => r.HomeConference === c || r.AwayConference === c);
+        const homeWins = confGames.filter(r => r.HomeScore > r.AwayScore).length;
+        const awayWins = confGames.filter(r => r.AwayScore > r.HomeScore).length;
+        const totalGames = confGames.length;
+        const winRate = totalGames ? (homeWins + awayWins) / totalGames * 100 : 0;
+        const avgTotal = confGames.filter(r=>r.HomeScore!=null).reduce((s,r)=>s+r.HomeScore+r.AwayScore,0)/confGames.length;
+        const avgSpread = confGames.filter(r=>r.Spread!=null).reduce((s,r)=>s+Math.abs(r.Spread||0),0)/confGames.length;
+        return { name: c, games: totalGames, homeWins, awayWins, winRate, avgTotal, avgSpread };
       });
 
-      const confTableData=Object.entries(confStats).map(([conf,data])=>({
-        conference:conf, games:data.games,
-        winPct: (data.wins/(data.wins+data.losses)*100).toFixed(1),
-        atsPct: (data.spreads.reduce((a,b)=>a+b,0)/data.spreads.length*100).toFixed(1),
-        overPct: (data.totals.reduce((a,b)=>a+b,0)/data.totals.length*100).toFixed(1)
-      })).filter(c=>!isNaN(c.winPct)).sort((a,b)=>b.games-a.games);
+      const mostGamesConf = stats.reduce((prev, curr) => (prev.games > curr.games) ? prev : curr, { games: 0 });
+      const highestScoringConf = stats.reduce((prev, curr) => (prev.avgTotal > curr.avgTotal) ? prev : curr, { avgTotal: 0 });
+      const largestSpreadConf = stats.reduce((prev, curr) => (prev.avgSpread > curr.avgSpread) ? prev : curr, { avgSpread: 0 });
 
-      let tableHTML='<table><thead><tr><th>Conference</th><th>Games</th><th>Win %</th><th>ATS %</th><th>Over %</th></tr></thead><tbody>';
-      confTableData.forEach(d=>tableHTML+=`<tr><td>${d.conference}</td><td>${d.games}</td><td>${d.winPct}%</td><td>${d.atsPct}%</td><td>${d.overPct}%</td></tr>`);
-      tableHTML+='</tbody></table>';
-      document.getElementById('conferenceTable').innerHTML=tableHTML;
-      updateConferenceCharts(confTableData);
-    }
-    function updateConferenceCharts(data){
-      const sorted=data.sort((a,b)=>b.games-a.games).slice(0,10);
-      const ctx=document.getElementById('conferenceGamesChart'); if(!ctx) return; destroy('conferenceGamesChart');
-      charts.conferenceGamesChart=new Chart(ctx.getContext('2d'),{
-        type:'bar', data:{ labels:sorted.map(d=>d.conference), datasets:[{ label:'Games', data:sorted.map(d=>d.games), backgroundColor:'rgba(42,82,152,.8)', borderColor:'rgba(42,82,152,1)', borderWidth:2 }]},
-        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{ display:true, text:'Games' } }, x:{ title:{ display:true, text:'Conference' } } } }
-      });
-    }
-
-    // ====== Team Analysis ======
-    function updateTeamAnalysis(){
-      const team=document.getElementById('teamSelectAnalysis').value;
-      if(!team){ document.getElementById('team-stats').innerHTML='<p style="text-align:center">Please select a team</p>'; return; }
-      const teamGames=allData.filter(r=>r.HomeTeam_x===team || r.AwayTeam_x===team);
-      if(!teamGames.length){ document.getElementById('team-stats').innerHTML='<p style="text-align:center">No data for this team</p>'; return; }
-
-      let homeWins=0, awayWins=0, homeATS=0, awayATS=0, homeTotals=0, awayTotals=0;
-      let homeGames=0, awayGames=0, totalPoints=0, totalGames=0;
-      teamGames.forEach(r=>{
-        const isHome=r.HomeTeam_x===team;
-        if(isHome) homeGames++; else awayGames++;
-        if(r.HomeScore!=null && r.AwayScore!=null){
-          totalGames++;
-          totalPoints+=r.HomeScore+r.AwayScore;
-          if((isHome && r.HomeScore>r.AwayScore) || (!isHome && r.AwayScore>r.HomeScore)) { if(isHome) homeWins++; else awayWins++; }
-          if(r.Spread!=null){
-            const sm=(r.HomeScore-r.AwayScore)+(r.Spread||0);
-            if((isHome && sm>0) || (!isHome && sm<0)) { if(isHome) homeATS++; else awayATS++; }
-          }
-          if(r.OverUnder!=null){
-            const total=r.HomeScore+r.AwayScore;
-            if(total>r.OverUnder) { if(isHome) homeTotals+=1; else awayTotals+=1; }
-          }
-        }
-      });
-      const homeWinPct=homeGames?(homeWins/homeGames*100).toFixed(1):'0.0';
-      const awayWinPct=awayGames?(awayWins/awayGames*100).toFixed(1):'0.0';
-      const homeATSPct=(homeATS/homeGames*100).toFixed(1);
-      const awayATSPct=(awayATS/awayGames*100).toFixed(1);
-      const overPct=(homeTotals+awayTotals)/(homeGames+awayGames)*100;
-      const avgPoints=totalGames? (totalPoints/totalGames).toFixed(1) : 'N/A';
-
-      document.getElementById('team-stats').innerHTML=`
-        <div class="stat-card"><div class="stat-number">${homeWinPct}%</div><div class="stat-label">Home Win %</div></div>
-        <div class="stat-card"><div class="stat-number">${awayWinPct}%</div><div class="stat-label">Away Win %</div></div>
-        <div class="stat-card"><div class="stat-number">${homeATSPct}%</div><div class="stat-label">Home ATS %</div></div>
-        <div class="stat-card"><div class="stat-number">${awayATSPct}%</div><div class="stat-label">Away ATS %</div></div>
-        <div class="stat-card"><div class="stat-number">${overPct.toFixed(1)}%</div><div class="stat-label">Over Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${avgPoints}</div><div class="stat-label">Avg Points/Game</div></div>`;
-
-      updateTeamCharts(teamGames, team);
-    }
-    function updateTeamCharts(teamGames, teamName){
-      updateTeamHomeAwayChart(teamGames, teamName);
-      updateTeamATSSeasonChart(teamGames, teamName);
-      updateTeamSpreadChart(teamGames, teamName);
-      updateTeamTotalsChart(teamGames, teamName);
-      updateTeamScoringChart(teamGames, teamName);
-      updateTeamGamesTable(teamGames, teamName);
-    }
-    function updateTeamHomeAwayChart(data, teamName){
-      const homeGames=data.filter(r=>r.HomeTeam_x===teamName);
-      const awayGames=data.filter(r=>r.AwayTeam_x===teamName);
-      const homeWins=homeGames.filter(r=>r.HomeScore>r.AwayScore).length;
-      const awayWins=awayGames.filter(r=>r.AwayScore>r.HomeScore).length;
-      const ctx=document.getElementById('teamHomeAwayChart'); if(!ctx) return; destroy('teamHomeAwayChart');
-      charts.teamHomeAwayChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Home Wins','Away Wins','Home Losses','Away Losses'], datasets:[{ data:[homeWins,awayWins,homeGames.length-homeWins,awayGames.length-awayWins], backgroundColor:['#00b894','#ff6b35','#2a5298','#1e3c72']}]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
-    }
-    function updateTeamATSSeasonChart(data, teamName){
-      const seasonStats={};
-      data.forEach(r=>{
-        const season=r.Season; if(!season) return; if(!seasonStats[season]) seasonStats[season]={atsWins:0,total:0};
-        const isHome=r.HomeTeam_x===teamName;
-        const margin=(r.HomeScore||0)-(r.AwayScore||0); const sm=margin+(r.Spread||0);
-        if(Math.abs(sm)>0.5){ seasonStats[season].total++; if((isHome&&sm>0)||(!isHome&&sm<0)) seasonStats[season].atsWins++; }
-      });
-      const seasons=Object.keys(seasonStats).sort();
-      const percs=seasons.map(s=> (seasonStats[s].atsWins/seasonStats[s].total*100).toFixed(1));
-      const ctx=document.getElementById('teamATSSeasonChart'); if(!ctx) return; destroy('teamATSSeasonChart');
-      charts.teamATSSeasonChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:seasons, datasets:[{ label:'ATS %', data:percs, borderColor:'#6c5ce7', backgroundColor:'rgba(108,92,231,.2)', fill:false }]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, max:100 } } } });
-    }
-    function updateTeamSpreadChart(data, teamName){
-      const spreads=data.filter(r=>r.Spread!=null).map(r=>{ const isHome=r.HomeTeam_x===teamName; const margin=(r.HomeScore||0)-(r.AwayScore||0); const spread=r.Spread*(isHome?1:-1); const vsSpread=margin-spread; return { spread: -spread, vsSpread }; });
-      const ctx=document.getElementById('teamSpreadChart'); if(!ctx) return; destroy('teamSpreadChart');
-      charts.teamSpreadChart=new Chart(ctx.getContext('2d'),{ type:'scatter', data:{ datasets:[{ label:'Spread Performance', data:spreads.map(s=>({ x:s.spread, y:s.vsSpread })), backgroundColor:'#ff6b35'}]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ title:{display:true, text:'Spread'}, ticks:{ callback:v=>v>0?'-'+v:v } }, y:{ title:{display:true, text:'Margin vs Spread'}, beginAtZero:true } } } });
-    }
-    function updateTeamTotalsChart(data, teamName){
-      const totals=data.filter(r=>r.OverUnder!=null);
-      const over=totals.filter(r=>r.HomeScore+r.AwayScore>r.OverUnder).length;
-      const under=totals.filter(r=>r.HomeScore+r.AwayScore<r.OverUnder).length;
-      const push=totals.filter(r=>r.HomeScore+r.AwayScore===r.OverUnder).length;
-      const ctx=document.getElementById('teamTotalsChart'); if(!ctx) return; destroy('teamTotalsChart');
-      charts.teamTotalsChart=new Chart(ctx.getContext('2d'),{ type:'pie', data:{ labels:['Overs','Unders','Pushes'], datasets:[{ data:[over,under,push], backgroundColor:['#f7931e','#1e3c72','#ddd'] }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
-    }
-    function updateTeamScoringChart(data, teamName){
-      const weeklyScores={}; data.forEach(r=>{ if(r.Season&&r.Week&&r.HomeScore!=null&&r.AwayScore!=null){ const key=r.Season+' Week '+r.Week; const score=r.HomeTeam_x===teamName?r.HomeScore:r.AwayScore; if(!weeklyScores[key]) weeklyScores[key]=[]; weeklyScores[key].push(score); } });
-      const labels=Object.keys(weeklyScores).sort((a,b)=>{ const [s1,w1]=a.split(' Week '); const [s2,w2]=b.split(' Week '); if(s1!==s2) return s1-s2; return w1-w2; });
-      const avgScores=labels.map(l=>weeklyScores[l].reduce((a,b)=>a+b,0)/weeklyScores[l].length);
-      const ctx=document.getElementById('teamScoringChart'); if(!ctx) return; destroy('teamScoringChart');
-      charts.teamScoringChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:labels, datasets:[{ label:'Avg Points', data:avgScores, borderColor:'#00cec9', backgroundColor:'rgba(0,206,201,.2)', fill:false }]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ ticks:{ maxRotation:90, autoSkip:true } }, y:{ beginAtZero:true } } } });
-    }
-    function updateTeamGamesTable(data, teamName){
-      let tableHTML='<table><thead><tr><th>Date</th><th>Opponent</th><th>Score</th><th>Spread</th><th>Result</th></tr></thead><tbody>';
-      data.slice(-20).reverse().forEach(r=>{
-        const isHome=r.HomeTeam_x===teamName;
-        const opponent=isHome?r.AwayTeam_x:r.HomeTeam_x;
-        const score=`${r.HomeScore||'?'}-${r.AwayScore||'?'}`;
-        const spread=r.Spread?`${isHome?'':'@ '}${r.FormattedSpread}`:'N/A';
-        const result=r.HomeScore!=null && r.AwayScore!=null ? ((isHome && r.HomeScore>r.AwayScore) || (!isHome && r.AwayScore>r.HomeScore) ? 'W' : 'L') : 'N/A';
-        tableHTML+=`<tr><td>${r.StartDate?.substring(0,10)}</td><td>${opponent}</td><td>${score}</td><td>${spread}</td><td>${result}</td></tr>`;
-      });
-      tableHTML+='</tbody></table>';
-      document.getElementById('teamGamesTable').innerHTML=tableHTML;
-    }
-
-    // ====== Yearly Analysis ======
-    function updateYearAnalysis(){
-      const year=document.getElementById('yearSelectAnalysis').value;
-      const compareYear=document.getElementById('compareYearSelect').value;
-      if(!year) return;
-      const yearData=allData.filter(r=>r.Season==year);
-      const compareData=compareYear?allData.filter(r=>r.Season==compareYear):[];
-      
-      const stats = calculateYearStats(yearData);
-      const compareStats = compareData.length?calculateYearStats(compareData):null;
-      
-      let html=`
-        <div class="stat-card"><div class="stat-number">${stats.games}</div><div class="stat-label">Games</div></div>
-        <div class="stat-card"><div class="stat-number">${stats.avgSpread.toFixed(1)}</div><div class="stat-label">Avg Spread</div></div>
-        <div class="stat-card"><div class="stat-number">${stats.atsPct.toFixed(1)}%</div><div class="stat-label">ATS Win Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${stats.overPct.toFixed(1)}%</div><div class="stat-label">Over Rate</div></div>
-        <div class="stat-card"><div class="stat-number">${stats.avgScore.toFixed(1)}</div><div class="stat-label">Avg Points</div></div>
+      const html = `
+        <div class="stat-card"><div class="stat-number">${mostGamesConf.name || 'N/A'}</div><div class="stat-label">Most Games Analyzed</div></div>
+        <div class="stat-card"><div class="stat-number">${highestScoringConf.name || 'N/A'}</div><div class="stat-label">Highest Avg Total</div></div>
+        <div class="stat-card"><div class="stat-number">${largestSpreadConf.name || 'N/A'}</div><div class="stat-label">Largest Avg Spread</div></div>
+        <div class="stat-card"><div class="stat-number">${stats.length}</div><div class="stat-label">Total Conferences</div></div>
       `;
-      document.getElementById('year-stats').innerHTML=html;
-      
-      updateYearCharts(year, yearData);
-      updateYearComparisonTable(year, yearData, compareYear, compareData);
-    }
-    function calculateYearStats(data){
-      const games=data.length;
-      const withSpreads=data.filter(r=>r.Spread!=null);
-      const withTotals=data.filter(r=>r.OverUnder!=null);
-      const withScores=data.filter(r=>r.HomeScore!=null&&r.AwayScore!=null);
-      const avgSpread=withSpreads.reduce((s,r)=>s+Math.abs(r.Spread||0),0)/withSpreads.length;
-      let atsWins=0, atsTotal=0; withSpreads.forEach(r=>{ const sm=(r.HomeScore-r.AwayScore)+(r.Spread||0); if(Math.abs(sm)<0.5) atsTotal+=0.5; else if(sm>0) atsWins++; atsTotal++; });
-      let overs=0, totalsGames=0; withTotals.forEach(r=>{ const tot=r.HomeScore+r.AwayScore; if(tot>r.OverUnder) overs++; if(Math.abs(tot-r.OverUnder)>0) totalsGames++; });
-      const avgScore=withScores.reduce((s,r)=>s+r.HomeScore+r.AwayScore,0)/withScores.length;
-      return { games, avgSpread, atsPct: (atsWins/withSpreads.length*100), overPct:(overs/totalsGames*100), avgScore };
+      document.getElementById('conference-stats').innerHTML = html;
+
+      updateConferenceGamesChart(stats);
+      updateConferenceTable(stats);
     }
 
-    function updateYearCharts(year, yearData){
+    function updateConferenceGamesChart(stats) {
+      const sorted = stats.sort((a, b) => b.games - a.games).slice(0, 10);
+      const ctx=document.getElementById('conferenceGamesChart'); if(!ctx) return; destroy('conferenceGamesChart');
+      charts.conferenceGamesChart = new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:sorted.map(s => s.name), datasets:[{ label:'Games', data:sorted.map(s => s.games), backgroundColor:'#ff6b35' }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    function updateConferenceTable(stats) {
+      const tableDiv = document.getElementById('conferenceTable');
+      if (!tableDiv) return;
+      let html = `<table><thead><tr><th>Conference</th><th>Games</th><th>Avg Total</th><th>Avg Spread</th></tr></thead><tbody>`;
+      stats.sort((a, b) => b.games - a.games).forEach(s => {
+        html += `<tr><td>${s.name}</td><td>${s.games}</td><td>${s.avgTotal.toFixed(1)}</td><td>${s.avgSpread.toFixed(1)}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      tableDiv.innerHTML = html;
+    }
+
+    // Team Analysis
+    function updateTeamAnalysis(){
+      const team = document.getElementById('teamSelectAnalysis').value;
+      if (!team) {
+        document.getElementById('team-stats').innerHTML = '';
+        return;
+      }
+
+      const teamGames = filteredData.filter(r => (r.HomeTeam_x === team || r.AwayTeam_x === team) && r.Completed);
+
+      const homeGames = teamGames.filter(r => r.HomeTeam_x === team);
+      const awayGames = teamGames.filter(r => r.AwayTeam_x === team);
+      const totalGames = teamGames.length;
+
+      const teamATS = teamGames.filter(r => {
+        if (!r.Spread) return false;
+        const spread = Math.abs(r.Spread);
+        const margin = Math.abs(r.HomeScore - r.AwayScore);
+        if (r.HomeTeam_x === team) {
+          return (r.HomeScore > r.AwayScore && margin > spread) || (r.HomeScore < r.AwayScore && margin < spread)
+        } else {
+          return (r.AwayScore > r.HomeScore && margin > spread) || (r.AwayScore < r.HomeScore && margin < spread)
+        }
+      }).length;
+      const atsWinRate = totalGames ? (teamATS / totalGames * 100).toFixed(1) : 0;
+
+      const overGames = teamGames.filter(r => r.OverUnder && (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+      const underGames = teamGames.filter(r => r.OverUnder && (r.HomeScore + r.AwayScore) < r.OverUnder).length;
+      const overPerc = (overGames / (overGames + underGames) * 100).toFixed(1) || 0;
+
+      const html = `
+        <div class="stat-card"><div class="stat-number">${totalGames}</div><div class="stat-label">Games Analyzed</div></div>
+        <div class="stat-card"><div class="stat-number">${atsWinRate}%</div><div class="stat-label">ATS Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${overPerc}%</div><div class="stat-label">Over Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${(homeGames.length/totalGames*100).toFixed(1)}%</div><div class="stat-label">Home Game %</div></div>
+      `;
+      document.getElementById('team-stats').innerHTML = html;
+
+      updateTeamHomeAwayChart(homeGames, awayGames);
+      updateTeamATSSeasonChart(teamGames);
+      updateTeamSpreadChart(teamGames);
+      updateTeamTotalsChart(teamGames);
+      updateTeamScoringChart(teamGames);
+      updateTeamGamesTable(teamGames);
+    }
+
+    function updateTeamHomeAwayChart(homeGames, awayGames){
+      const homeWins = homeGames.filter(r => r.HomeScore > r.AwayScore).length;
+      const awayWins = awayGames.filter(r => r.AwayScore > r.HomeScore).length;
+      const homeLosses = homeGames.filter(r => r.HomeScore < r.AwayScore).length;
+      const awayLosses = awayGames.filter(r => r.AwayScore < r.HomeScore).length;
+      const ctx=document.getElementById('teamHomeAwayChart'); if(!ctx) return; destroy('teamHomeAwayChart');
+      charts.teamHomeAwayChart=new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:['Home', 'Away'], datasets:[{ label:'Wins', data:[homeWins, awayWins], backgroundColor:'#2a5298' }, { label:'Losses', data:[homeLosses, awayLosses], backgroundColor:'#ff6b35' }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ stacked:true }, y:{ stacked:true, beginAtZero:true } } }
+      });
+    }
+
+    function updateTeamATSSeasonChart(data){
+      const seasons = [...new Set(data.map(r=>r.Season))].sort();
+      const atsWinRates = seasons.map(s => {
+        const seasonData = data.filter(r=>r.Season === s);
+        const wins = seasonData.filter(r => (r.HomeTeam_x === data[0].HomeTeam_x && r.HomeScore + r.Spread > r.AwayScore) || (r.AwayTeam_x === data[0].AwayTeam_x && r.AwayScore - r.Spread > r.HomeScore)).length;
+        const total = seasonData.filter(r => r.Spread != null).length;
+        return total ? (wins/total*100) : 0;
+      });
+      const ctx=document.getElementById('teamATSSeasonChart'); if(!ctx) return; destroy('teamATSSeasonChart');
+      charts.teamATSSeasonChart=new Chart(ctx.getContext('2d'), {
+        type:'line', data:{ labels:seasons, datasets:[{ label:'ATS Win %', data:atsWinRates, borderColor:'#f7931e', backgroundColor:'rgba(247,147,30,.1)', fill:true }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ min:0, max:100, title:{display:true, text:'ATS Win %'} }, x:{ title:{display:true, text:'Season'} } } }
+      });
+    }
+
+    function updateTeamSpreadChart(data) {
+      const wins = data.filter(r => (r.HomeTeam_x === r.HomeTeam_x && r.HomeScore + r.Spread > r.AwayScore) || (r.AwayTeam_x === r.AwayTeam_x && r.AwayScore - r.Spread > r.HomeScore)).length;
+      const losses = data.filter(r => (r.HomeTeam_x === r.HomeTeam_x && r.HomeScore + r.Spread < r.AwayScore) || (r.AwayTeam_x === r.AwayTeam_x && r.AwayScore - r.Spread < r.HomeScore)).length;
+      const pushes = data.filter(r => Math.abs(r.HomeScore - r.AwayScore) === Math.abs(r.Spread)).length;
+      const ctx = document.getElementById('teamSpreadChart'); if(!ctx) return; destroy('teamSpreadChart');
+      charts.teamSpreadChart = new Chart(ctx.getContext('2d'), {
+        type:'pie', data:{ labels:['ATS Wins', 'ATS Losses', 'Pushes'], datasets:[{ data:[wins, losses, pushes], backgroundColor:['#00cec9', '#ff6b35', '#a29bfe']}]},
+        options:{ responsive:true, maintainAspectRatio:false }
+      });
+    }
+
+    function updateTeamTotalsChart(data) {
+      const over = data.filter(r => r.OverUnder && (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+      const under = data.filter(r => r.OverUnder && (r.HomeScore + r.AwayScore) < r.OverUnder).length;
+      const push = data.length - (over + under);
+      const ctx = document.getElementById('teamTotalsChart'); if(!ctx) return; destroy('teamTotalsChart');
+      charts.teamTotalsChart = new Chart(ctx.getContext('2d'), {
+        type:'pie', data:{ labels:['Over', 'Under', 'Push'], datasets:[{ data:[over, under, push], backgroundColor:['#00b894', '#6c5ce7', '#a29bfe']}]},
+        options:{ responsive:true, maintainAspectRatio:false }
+      });
+    }
+
+    function updateTeamScoringChart(data) {
+      const seasons = [...new Set(data.map(r => r.Season))].sort();
+      const homeScores = seasons.map(s => {
+        const seasonData = data.filter(r => r.Season === s && r.HomeTeam_x === document.getElementById('teamSelectAnalysis').value && r.HomeScore != null);
+        return seasonData.reduce((sum, r) => sum + r.HomeScore, 0) / seasonData.length;
+      });
+      const awayScores = seasons.map(s => {
+        const seasonData = data.filter(r => r.Season === s && r.AwayTeam_x === document.getElementById('teamSelectAnalysis').value && r.AwayScore != null);
+        return seasonData.reduce((sum, r) => sum + r.AwayScore, 0) / seasonData.length;
+      });
+      const ctx = document.getElementById('teamScoringChart'); if(!ctx) return; destroy('teamScoringChart');
+      charts.teamScoringChart = new Chart(ctx.getContext('2d'), {
+        type: 'line', data: {
+          labels: seasons,
+          datasets: [
+            { label: 'Avg Home Score', data: homeScores, borderColor: '#2a5298', fill: false },
+            { label: 'Avg Away Score', data: awayScores, borderColor: '#f7931e', fill: false }
+          ]
+        },
+        options: { responsive:true, maintainAspectRatio:false, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    function updateTeamGamesTable(data) {
+      const tableDiv = document.getElementById('teamGamesTable');
+      if (!tableDiv) return;
+      const sortedData = data.slice(-10).reverse(); // Last 10 games
+      let html = `<table><thead><tr><th>Date</th><th>Opponent</th><th>Result</th><th>Score</th><th>Spread Result</th></tr></thead><tbody>`;
+      sortedData.forEach(g => {
+        const isHome = g.HomeTeam_x === document.getElementById('teamSelectAnalysis').value;
+        const opponent = isHome ? g.AwayTeam_x : g.HomeTeam_x;
+        const teamScore = isHome ? g.HomeScore : g.AwayScore;
+        const opponentScore = isHome ? g.AwayScore : g.HomeScore;
+        const result = teamScore > opponentScore ? 'W' : (teamScore < opponentScore ? 'L' : 'T');
+        const score = `${teamScore}-${opponentScore}`;
+        let spreadResult = 'N/A';
+        if (g.Spread) {
+          const covered = isHome ? (teamScore + g.Spread > opponentScore) : (opponentScore - g.Spread > teamScore);
+          spreadResult = covered ? 'Covered' : 'Not Covered';
+          if (Math.abs(teamScore - opponentScore) === Math.abs(g.Spread)) spreadResult = 'Push';
+        }
+
+        html += `<tr><td>${g.StartDate.substring(0,10)}</td><td>vs ${opponent}</td><td>${result}</td><td>${score}</td><td>${spreadResult}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      tableDiv.innerHTML = html;
+    }
+
+    // Yearly Analysis
+    function updateYearAnalysis() {
+      const year = document.getElementById('yearSelectAnalysis').value;
+      const compareYear = document.getElementById('compareYearSelect').value;
+      if (!year) return;
+
+      const yearData = filteredData.filter(r => r.Season == year);
+      const compareData = compareYear ? filteredData.filter(r => r.Season == compareYear) : null;
+
+      const totalGames = yearData.length;
+      const homeWins = yearData.filter(r => r.HomeScore > r.AwayScore).length;
+      const avgScore = yearData.filter(r=>r.HomeScore!=null).reduce((s,r)=>s+r.HomeScore+r.AwayScore,0)/yearData.length;
+      const overPerc = (yearData.filter(r => (r.HomeScore + r.AwayScore) > r.OverUnder).length / yearData.length * 100).toFixed(1);
+
+      const html = `
+        <div class="stat-card"><div class="stat-number">${totalGames}</div><div class="stat-label">${year} Total Games</div></div>
+        <div class="stat-card"><div class="stat-number">${(homeWins / totalGames * 100).toFixed(1)}%</div><div class="stat-label">Home Win %</div></div>
+        <div class="stat-card"><div class="stat-number">${avgScore.toFixed(1)}</div><div class="stat-label">Avg Total Score</div></div>
+        <div class="stat-card"><div class="stat-number">${overPerc}%</div><div class="stat-label">Over %</div></div>
+      `;
+      document.getElementById('year-stats').innerHTML = html;
+
       updateYearMonthlyChart(year, yearData);
       updateYearConferenceChart(year, yearData);
       updateYearWeeklyChart(year, yearData);
       updateYearSpreadAccuracyChart(year, yearData);
       updateYearScoringDistChart(year, yearData);
+      updateYearComparisonTable(year, yearData, compareYear, compareData);
     }
+
     function updateYearMonthlyChart(year, yearData){
-      const buckets={'Aug':0,'Sep':0,'Oct':0,'Nov':0,'Dec':0,'Jan':0};
-      yearData.forEach(r=>{ const d=new Date(r.StartDate); const m=d.toLocaleString('default',{month:'short'}); buckets[m]++; });
+      const months = {'Sep':0, 'Oct':0, 'Nov':0, 'Dec':0, 'Jan':0};
+      yearData.forEach(r => {
+        const month = new Date(r.StartDate).toLocaleString('en-us', { month: 'short' });
+        if (months.hasOwnProperty(month)) months[month]++;
+      });
       const ctx=document.getElementById('yearMonthlyChart'); if(!ctx) return; destroy('yearMonthlyChart');
-      charts.yearMonthlyChart=new Chart(ctx.getContext('2d'),{ type:'bar', data:{ labels:Object.keys(buckets), datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'rgba(255,107,53,.8)', borderColor:'rgba(255,107,53,1)', borderWidth:2 }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true }, x:{ title:{display:true, text:'Month'} } } } });
+      charts.yearMonthlyChart = new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:Object.keys(months), datasets:[{ label:'Games', data:Object.values(months), backgroundColor:'#ff6b35' }]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true } } }
+      });
     }
+
     function updateYearConferenceChart(year, yearData){
-      const buckets={}; yearData.forEach(r=>{ if(r.HomeConference) buckets[r.HomeConference]=(buckets[r.HomeConference]||0)+1; });
-      const sorted=Object.entries(buckets).sort(([,a],[,b])=>b-a);
+      const counts={}; yearData.forEach(r=>{ if(r.HomeConference) counts[r.HomeConference]=(counts[r.HomeConference]||0)+1; });
+      const sorted=Object.entries(counts).sort(([,a],[,b])=>b-a).slice(0,10);
       const ctx=document.getElementById('yearConferenceChart'); if(!ctx) return; destroy('yearConferenceChart');
-      charts.yearConferenceChart=new Chart(ctx.getContext('2d'),{ type:'doughnut', data:{ labels:sorted.map(([n])=>n), datasets:[{ data:sorted.map(([,c])=>c), backgroundColor:['#ff6b35','#f7931e','#2a5298','#1e3c72','#00b894','#00cec9','#6c5ce7','#a29bfe']}]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } } });
+      charts.yearConferenceChart=new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:sorted.map(([n])=>n), datasets:[{ label:'Games', data:sorted.map(([,c])=>c), backgroundColor:'#2a5298' }]},
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, indexAxis:'y', scales:{ x:{ beginAtZero:true } } }
+      });
     }
+
     function updateYearWeeklyChart(year, yearData){
-      const buckets={}; yearData.forEach(r=>{ if(r.Week){ buckets[r.Week]=(buckets[r.Week]||0)+1; } });
+      const buckets={}; yearData.forEach(r=>{ if(r.Week!=null) buckets[r.Week]=(buckets[r.Week]||0)+1; });
       const ctx=document.getElementById('yearWeeklyChart'); if(!ctx) return; destroy('yearWeeklyChart');
-      charts.yearWeeklyChart=new Chart(ctx.getContext('2d'),{ type:'line', data:{ labels:Object.keys(buckets).sort((a,b)=>a-b), datasets:[{ label:'Games', data:Object.values(buckets), borderColor:'#e17055', backgroundColor:'rgba(225,112,85,.1)', borderWidth:3, fill:true }]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Number of Games'} }, x:{ title:{display:true, text:'Week'} } } } });
+      charts.yearWeeklyChart=new Chart(ctx.getContext('2d'), {
+        type:'line', data:{ labels:Object.keys(buckets).sort((a,b)=>a-b), datasets:[{ label:'Games', data:Object.values(buckets), borderColor:'#f7931e', fill:true, tension:0.4 }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true }, x:{ title:{display:true, text:'Week'} } } }
+      });
     }
+
     function updateYearSpreadAccuracyChart(year, yearData){
-      const data=yearData.filter(r=>r.Spread!=null && r.HomeScore!=null && r.AwayScore!=null);
-      const vsSpread=data.map(r=>Math.abs((r.HomeScore||0)-(r.AwayScore||0)-Math.abs(r.Spread||0)));
+      const diffs = yearData.filter(r=>r.Spread!=null && r.Completed).map(r => Math.abs(r.HomeScore - r.AwayScore) - Math.abs(r.Spread));
+      const buckets={'-15+':0,'-10 to -14':0,'-5 to -9':0,'0 to -4':0,'1 to 4':0,'5 to 9':0,'10+':0};
+      diffs.forEach(d => {
+        if(d<-14) buckets['-15+']++;
+        else if (d<-9) buckets['-10 to -14']++;
+        else if (d<-4) buckets['-5 to -9']++;
+        else if (d<0) buckets['0 to -4']++;
+        else if (d<5) buckets['1 to 4']++;
+        else if (d<10) buckets['5 to 9']++;
+        else buckets['10+']++;
+      });
       const ctx=document.getElementById('yearSpreadAccuracyChart'); if(!ctx) return; destroy('yearSpreadAccuracyChart');
-      charts.yearSpreadAccuracyChart=new Chart(ctx.getContext('2d'),{ type:'scatter', data:{ datasets:[{ label:'Vs Spread Error', data:vsSpread.map((y,i)=>({ x:i, y:y })), backgroundColor:'#2a5298'}]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, title:{display:true, text:'Error (Margin-Spread)'} }, x:{ title:{display:true, text:'Game Index'} } } } });
+      charts.yearSpreadAccuracyChart=new Chart(ctx.getContext('2d'), {
+        type:'bar', data:{ labels:Object.keys(buckets), datasets:[{ label:'Games', data:Object.values(buckets), backgroundColor:'#00cec9' }]},
+        options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true }, x:{ title:{display:true, text:'Spread Margin Difference'} } } }
+      });
     }
+
     function updateYearScoringDistChart(year, yearData){
       const buckets={'<35':0,'35-50':0,'50-65':0,'65-80':0,'>80':0};
       yearData.forEach(r=>{ if(r.HomeScore!=null && r.AwayScore!=null){ const tot=r.HomeScore+r.AwayScore; if(tot<35) buckets['<35']++; else if (tot<50) buckets['35-50']++; else if (tot<65) buckets['50-65']++; else if (tot<80) buckets['65-80']++; else buckets['>80']++; } });
@@ -734,35 +1129,57 @@
     }
 
     function updateYearComparisonTable(year, yearData, compareYear, compareData){
-      const table = `<table><thead><tr><th>Metric</th><th>${year}</th>${compareYear? `<th>${compareYear}</th><th>Difference</th>`:''}</tr></thead><tbody>
-        <tr><td>Games</td><td>${yearData.length}</td>${compareYear? `<td>${compareData.length}</td><td>${yearData.length-compareData.length}</td>`:''}</tr>
-        <tr><td>Avg Spread</td><td>${calculateAvg(yearData, 'Spread').toFixed(1)}</td>${compareYear? `<td>${calculateAvg(compareData, 'Spread').toFixed(1)}</td><td>${(calculateAvg(yearData,'Spread')-calculateAvg(compareData,'Spread')).toFixed(1)}</td>`:''}</tr>
-        <tr><td>ATS Win Rate</td><td>${calculateATS(yearData).toFixed(1)}%</td>${compareYear? `<td>${calculateATS(compareData).toFixed(1)}%</td><td>${(calculateATS(yearData)-calculateATS(compareData)).toFixed(1)}%</td>`:''}</tr>
-        <tr><td>Avg Total</td><td>${calculateAvg(yearData, 'OverUnder').toFixed(1)}</td>${compareYear? `<td>${calculateAvg(compareData, 'OverUnder').toFixed(1)}</td><td>${(calculateAvg(yearData,'OverUnder')-calculateAvg(compareData,'OverUnder')).toFixed(1)}</td>`:''}</tr>
-        <tr><td>Over Rate</td><td>${calculateOver(yearData).toFixed(1)}%</td>${compareYear? `<td>${calculateOver(compareData).toFixed(1)}%</td><td>${(calculateOver(yearData)-calculateOver(compareData)).toFixed(1)}%</td>`:''}</tr>
-        <tr><td>Avg Pts/Game</td><td>${calculateAvgPoints(yearData).toFixed(1)}</td>${compareYear? `<td>${calculateAvgPoints(compareData).toFixed(1)}</td><td>${(calculateAvgPoints(yearData)-calculateAvgPoints(compareData)).toFixed(1)}</td>`:''}</tr>
-      </tbody></table>`;
-      document.getElementById('yearComparisonTable').innerHTML=table;
+      const table = document.getElementById('yearComparisonTable');
+      if (!table) return;
+
+      const getMetrics = data => {
+        const completed = data.filter(r => r.Completed);
+        const homeWins = completed.filter(r => r.HomeScore > r.AwayScore).length;
+        const totalGames = completed.length;
+        const avgTotalScore = totalGames ? completed.reduce((s, r) => s + r.HomeScore + r.AwayScore, 0) / totalGames : 0;
+        const atsWin = completed.filter(r => r.Spread != null && Math.abs(r.HomeScore - r.AwayScore) !== Math.abs(r.Spread)).length;
+        const overWin = completed.filter(r => r.OverUnder != null && (r.HomeScore + r.AwayScore) > r.OverUnder).length;
+        return {
+          totalGames,
+          homeWinPerc: (homeWins / totalGames * 100).toFixed(1),
+          avgTotalScore: avgTotalScore.toFixed(1),
+          atsWinPerc: atsWin ? (atsWin / completed.filter(r => r.Spread != null).length * 100).toFixed(1) : 'N/A',
+          overWinPerc: overWin ? (overWin / completed.filter(r => r.OverUnder != null).length * 100).toFixed(1) : 'N/A'
+        };
+      };
+
+      const metrics1 = getMetrics(yearData);
+      const metrics2 = compareData ? getMetrics(compareData) : null;
+
+      let html = `<table><thead><tr><th>Metric</th><th>${year}</th>${compareYear ? `<th>${compareYear}</th><th>Difference</th>` : ''}</tr></thead><tbody>`;
+      
+      const rows = [
+        { label: 'Total Games', key: 'totalGames' },
+        { label: 'Home Team Win %', key: 'homeWinPerc' },
+        { label: 'Avg Total Score', key: 'avgTotalScore' },
+        { label: 'ATS Win %', key: 'atsWinPerc' },
+        { label: 'Over %', key: 'overWinPerc' }
+      ];
+
+      rows.forEach(row => {
+        let diff = '';
+        if (metrics2) {
+          const val1 = parseFloat(metrics1[row.key]);
+          const val2 = parseFloat(metrics2[row.key]);
+          if (!isNaN(val1) && !isNaN(val2)) {
+            const d = (val1 - val2).toFixed(1);
+            diff = `<td>${d > 0 ? '+' : ''}${d}</td>`;
+          } else {
+            diff = `<td>N/A</td>`;
+          }
+        }
+        html += `<tr><td>${row.label}</td><td>${metrics1[row.key]}</td>${metrics2 ? `<td>${metrics2[row.key]}</td>${diff}` : ''}</tr>`;
+      });
+
+      html += `</tbody></table>`;
+      table.innerHTML = html;
     }
 
-    function calculateAvg(data, key){
-      const filtered=data.filter(r=>r[key]!=null); if(!filtered.length) return 0;
-      return filtered.reduce((s,r)=>s+(key==='Spread'?Math.abs(r[key]):r[key]||0),0)/filtered.length;
-    }
-    function calculateATS(data){
-      const filtered=data.filter(r=>r.Spread!=null && r.HomeScore!=null && r.AwayScore!=null); if(!filtered.length) return 0;
-      let atsWins=0; filtered.forEach(r=>{ const margin=(r.HomeScore||0)-(r.AwayScore||0); const sm=margin+(r.Spread||0); if(Math.abs(sm)>0.5) atsWins++; });
-      return atsWins/filtered.length*100;
-    }
-    function calculateOver(data){
-      const filtered=data.filter(r=>r.OverUnder!=null && r.HomeScore!=null && r.AwayScore!=null); if(!filtered.length) return 0;
-      let overs=0; filtered.forEach(r=>{ const total=r.HomeScore+r.AwayScore; if(total>r.OverUnder) overs++; });
-      return overs/filtered.length*100;
-    }
-    function calculateAvgPoints(data){
-      const filtered=data.filter(r=>r.HomeScore!=null && r.AwayScore!=null); if(!filtered.length) return 0;
-      return filtered.reduce((s,r)=>s+r.HomeScore+r.AwayScore,0)/filtered.length;
-    }
   </script>
 </body>
 </html>
