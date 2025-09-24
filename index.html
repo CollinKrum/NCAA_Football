@@ -279,11 +279,16 @@
       loadData();
     });
 
-    // ====== Data load (JSON file in repo) ======
+    // ====== Data load with fallback ======
     async function loadData() {
       try {
+        // Try to load real data first
         const resp = await fetch('data/ncaaf-games.json', { cache: 'no-store' });
-        if (!resp.ok) throw new Error('data/ncaaf-games.json not found');
+        if (!resp.ok) {
+          console.log('No data file found, loading demo data...');
+          loadDemoData();
+          return;
+        }
         const json = await resp.json();
         allData = json;
         filteredData = allData;
@@ -297,8 +302,88 @@
         document.getElementById('loading').style.display = 'none';
         document.getElementById('overview').classList.add('active');
       } catch (e) {
-        showError('Failed to load data: ' + e.message + '<br><br>Make sure your JSON exists at <code>data/ncaaf-games.json</code>.');
+        console.log('Error loading data, using demo data:', e.message);
+        loadDemoData();
       }
+    }
+
+    // ====== Demo data for testing ======
+    function loadDemoData() {
+      // Generate realistic demo data
+      const seasons = [2021, 2022, 2023, 2024];
+      const conferences = ['SEC', 'Big Ten', 'Big 12', 'Pac-12', 'ACC', 'American', 'Mountain West'];
+      const teams = {
+        'SEC': ['Alabama', 'Georgia', 'LSU', 'Florida', 'Auburn', 'Tennessee'],
+        'Big Ten': ['Ohio State', 'Michigan', 'Penn State', 'Wisconsin', 'Iowa', 'Nebraska'],
+        'Big 12': ['Oklahoma', 'Texas', 'Oklahoma State', 'Baylor', 'TCU', 'Kansas State'],
+        'Pac-12': ['USC', 'Oregon', 'Washington', 'Stanford', 'UCLA', 'Arizona State'],
+        'ACC': ['Clemson', 'Miami', 'Virginia Tech', 'North Carolina', 'Duke', 'Wake Forest'],
+        'American': ['Cincinnati', 'Houston', 'UCF', 'Memphis', 'SMU', 'Navy'],
+        'Mountain West': ['Boise State', 'Air Force', 'Colorado State', 'Wyoming', 'Nevada', 'UNLV']
+      };
+      const providers = ['DraftKings', 'FanDuel', 'BetMGM', 'Caesars', 'PointsBet'];
+      
+      allData = [];
+      let gameId = 1;
+
+      // Generate demo games
+      for (let season of seasons) {
+        for (let week = 1; week <= 15; week++) {
+          for (let conf of conferences) {
+            const confTeams = teams[conf];
+            const gamesThisWeek = Math.floor(Math.random() * 3) + 1;
+            
+            for (let g = 0; g < gamesThisWeek; g++) {
+              const homeTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              let awayTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              while (awayTeam === homeTeam) {
+                awayTeam = confTeams[Math.floor(Math.random() * confTeams.length)];
+              }
+
+              const spread = (Math.random() * 28 - 14); // -14 to +14
+              const total = Math.random() * 40 + 40; // 40 to 80
+              const homeScore = Math.floor(Math.random() * 35 + 10);
+              const awayScore = Math.floor(Math.random() * 35 + 10);
+              
+              const game = {
+                GameId: gameId++,
+                Season: season,
+                Week: week,
+                StartDate: new Date(season, 8 + Math.floor(week/4), (week % 4) * 7).toISOString(),
+                HomeTeam_x: homeTeam,
+                AwayTeam_x: awayTeam,
+                HomeConference: conf,
+                AwayConference: conf,
+                HomeScore: homeScore,
+                AwayScore: awayScore,
+                Spread: parseFloat(spread.toFixed(1)),
+                OverUnder: parseFloat(total.toFixed(1)),
+                LineProvider: providers[Math.floor(Math.random() * providers.length)]
+              };
+              
+              allData.push(game);
+            }
+          }
+        }
+      }
+
+      console.log(`Generated ${allData.length} demo games`);
+      filteredData = allData;
+      
+      // Enhance data with professional metrics
+      enhanceDataWithProMetrics();
+      
+      initializeFilters();
+      updateAnalysis();
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('overview').classList.add('active');
+      
+      // Show demo data notice
+      const demoNotice = document.createElement('div');
+      demoNotice.className = 'pro-insight';
+      demoNotice.innerHTML = '<strong>📊 Demo Mode:</strong> Using generated sample data. To load your actual data, place your JSON file at <code>data/ncaaf-games.json</code>';
+      document.querySelector('.container').insertBefore(demoNotice, document.querySelector('.tabs'));
     }
 
     // ====== Enhance data with professional metrics ======
