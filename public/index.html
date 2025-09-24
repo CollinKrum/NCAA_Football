@@ -3,15 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🏈 NCAAF Betting Analysis Dashboard</title>
+  <title>🏈 Football Betting Analysis Dashboard</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏈</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <style>
     * { margin:0; padding:0; box-sizing:border-box }
     body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72, #2a5298); color:#333; min-height:100vh; }
-    .header { background: linear-gradient(90deg, #ff6b35, #f7931e); color:#fff; text-align:center; padding:20px; box-shadow:0 4px 8px rgba(0,0,0,.2); }
+    .header { background: linear-gradient(90deg, #ff6b35, #f7931e); color:#fff; text-align:center; padding:24px 20px; box-shadow:0 4px 8px rgba(0,0,0,.2); }
     .header h1 { font-size:2.2em; margin-bottom:8px; text-shadow:2px 2px 4px rgba(0,0,0,.3) }
-    .header .pro-badge { background: rgba(255,255,255,.2); padding: 4px 12px; border-radius: 20px; font-size: 0.8em; margin-top: 8px; display: inline-block; }
+    .header .pro-badge { background: rgba(255,255,255,.15); padding: 6px 16px; border-radius: 20px; font-size: 0.85em; margin-top: 12px; display: inline-block; letter-spacing:0.05em; text-transform:uppercase; }
+    .sport-switch { display:flex; justify-content:center; gap:12px; margin-top:16px; flex-wrap:wrap; }
+    .sport-button { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3); color:#fff; padding:10px 20px; border-radius:999px; font-weight:600; letter-spacing:0.05em; cursor:pointer; transition:all .2s ease; }
+    .sport-button:hover { background:rgba(255,255,255,.28); transform:translateY(-1px); }
+    .sport-button.active { background:#fff; color:#ff6b35; box-shadow:0 6px 12px rgba(0,0,0,.18); }
     .container { max-width:1200px; margin:0 auto; padding:20px }
     .tabs { display:flex; justify-content:center; gap:8px; margin:20px 0; background:rgba(255,255,255,.1); border-radius:10px; padding:5px; flex-wrap:wrap }
     .tab { background:transparent; border:none; padding:12px 20px; color:#fff; cursor:pointer; border-radius:8px; font-size:15px; transition:.2s; }
@@ -67,9 +71,13 @@
 </head>
 <body>
   <div class="header">
-    <h1>🏈 2025 NCAAF Betting Analysis Dashboard</h1>
-    <p>Professional-Grade College Football Betting Analytics</p>
-    <div class="pro-badge">🔥 PRO EDITION - Sharp Money Detection & EV Analysis</div>
+    <h1 id="header-title">🏈 Football Betting Analysis Dashboard</h1>
+    <p id="header-subtitle">Professional-grade analytics for college and pro football markets.</p>
+    <div class="pro-badge" id="current-sport-label">Currently viewing: NCAAF</div>
+    <div class="sport-switch" id="sport-switch">
+      <button class="sport-button active" data-sport-button="ncaaf">NCAAF</button>
+      <button class="sport-button" data-sport-button="nfl">NFL</button>
+    </div>
   </div>
 
   <div class="container">
@@ -85,8 +93,8 @@
     </div>
 
     <div id="overview" class="tab-content active">
-      <div class="pro-insight">
-        <strong>🔥 Pro Insights:</strong> Locked on the 2025 season with live sharp money detection, EV calculations, and market inefficiency alerts for college football betting.
+      <div class="pro-insight" id="overview-insight">
+        <strong>🔥 Pro Insights:</strong> Track market movement, sharp signals, and EV swings for the current football season.
       </div>
       <div id="overview-stats" class="stats-grid">
         <div class="stat-card"><div class="stat-number">2,100</div><div class="stat-label">Total Games</div></div>
@@ -104,7 +112,7 @@
           </label>
           <label>Conference
             <select id="overview-conf">
-              <option value="">All Conferences</option>
+              <option value="">All Conferences / Divisions</option>
             </select>
           </label>
           <label>Book
@@ -129,7 +137,7 @@
                 <th>Date</th>
                 <th>Away</th>
                 <th>Home</th>
-                <th>Conferences</th>
+                <th>Conf / Div</th>
                 <th style="text-align:right">Spread</th>
                 <th style="text-align:right">Total</th>
                 <th>Book</th>
@@ -176,7 +184,7 @@
             </label>
             <label>Conference
               <select id="sharp-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -213,7 +221,7 @@
             </label>
             <label>Conference
               <select id="ev-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -254,7 +262,7 @@
             </label>
             <label>Conference
               <select id="key-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -285,7 +293,7 @@
             </label>
             <label>Conference
               <select id="spreads-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -322,7 +330,7 @@
             </label>
             <label>Conference
               <select id="totals-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -359,7 +367,7 @@
             </label>
             <label>Conference
               <select id="teams-conf">
-                <option value="">All Conferences</option>
+                <option value="">All Conferences / Divisions</option>
               </select>
             </label>
             <label>Book
@@ -423,7 +431,7 @@
           </label>
           <label>Conference
             <select id="historical-conf">
-              <option value="">All Conferences</option>
+              <option value="">All Conferences / Divisions</option>
             </select>
           </label>
           <label>Book
@@ -473,7 +481,7 @@
   </div>
 
   <div style="background:rgba(255,255,255,.1); color:#fff; text-align:center; padding:20px; margin-top:30px; border-radius:15px;">
-    <p>🏈 NCAAF Professional Betting Analysis Dashboard | Enhanced with Sharp Money Detection & EV Calculations</p>
+    <p>🏈 Football Professional Betting Analysis Dashboard | Enhanced with Sharp Money Detection & EV Calculations</p>
     <p>Built with Advanced Analytics | Optimized for Professional Bettors</p>
   </div>
 
@@ -507,7 +515,21 @@ function formatPct(n) {
 
 let ALL_GAMES = [];
 let STATS = null;
-const CURRENT_SEASON = '2025';
+let CURRENT_SEASON = '';
+let CURRENT_SPORT = 'ncaaf';
+
+const SPORT_META = {
+  ncaaf: {
+    label: 'NCAAF',
+    subtitle: 'Professional-grade analytics for college football betting.',
+    insight: 'College market watchers: track live sharp money, EV swings, and conference line movement in one view.'
+  },
+  nfl: {
+    label: 'NFL',
+    subtitle: 'Professional-grade analytics for pro football betting.',
+    insight: 'Pro bettors: monitor weekly market shifts, division trends, and sharp money signals across the league.'
+  }
+};
 
 const overviewState = {
   charts: {},
@@ -524,6 +546,60 @@ const chartPalette = {
   over: 'rgba(52,152,219,0.75)',
   under: 'rgba(255,159,67,0.75)'
 };
+
+function getSportMeta(sport = CURRENT_SPORT) {
+  return SPORT_META[sport] || SPORT_META.ncaaf;
+}
+
+function withSport(url) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}sport=${encodeURIComponent(CURRENT_SPORT)}`;
+}
+
+function determineCurrentSeason(stats) {
+  const seasons = Array.isArray(stats?.seasons) ? stats.seasons : [];
+  const numeric = seasons
+    .map(value => Number(value))
+    .filter(num => Number.isFinite(num))
+    .sort((a, b) => b - a);
+  if (numeric.length) return String(numeric[0]);
+
+  const fallback = Array.from(new Set((ALL_GAMES || []).map(g => g.season).filter(Boolean)))
+    .map(value => Number(value))
+    .filter(num => Number.isFinite(num))
+    .sort((a, b) => b - a);
+  return fallback.length ? String(fallback[0]) : '';
+}
+
+function updateSportUI() {
+  const meta = getSportMeta();
+  document.title = `🏈 ${meta.label} Betting Analysis Dashboard`;
+
+  const subtitle = document.getElementById('header-subtitle');
+  if (subtitle) subtitle.textContent = meta.subtitle;
+
+  const badge = document.getElementById('current-sport-label');
+  if (badge) badge.textContent = `Currently viewing: ${meta.label}`;
+
+  const insight = document.getElementById('overview-insight');
+  if (insight) insight.innerHTML = `<strong>🔥 Pro Insights:</strong> ${meta.insight}`;
+
+  document.querySelectorAll('[data-sport-button]').forEach(button => {
+    const sport = button.getAttribute('data-sport-button');
+    const isActive = sport === CURRENT_SPORT;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+}
+
+function setSport(sport) {
+  const normalized = String(sport || '').toLowerCase();
+  if (!SPORT_META[normalized]) return;
+  if (CURRENT_SPORT === normalized) return;
+  CURRENT_SPORT = normalized;
+  updateSportUI();
+  loadSportData();
+}
 
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -664,7 +740,9 @@ function populateAllFilters() {
 
     const isHistorical = scope === 'historical';
     const seasonValues = isHistorical ? historicalSeasons : (CURRENT_SEASON ? [String(CURRENT_SEASON)] : uniqueSeasons);
-    const seasonPlaceholder = isHistorical ? 'All Historical Seasons' : `${CURRENT_SEASON} Season`;
+    const seasonPlaceholder = isHistorical
+      ? 'All Historical Seasons'
+      : (CURRENT_SEASON ? `${CURRENT_SEASON} Season` : 'All Seasons');
 
     if (seasonSelect) {
       populateSelectControl(seasonSelect, seasonValues, seasonPlaceholder, isHistorical);
@@ -673,7 +751,7 @@ function populateAllFilters() {
       }
     }
 
-    populateSelectControl(conferenceSelect, conferences, 'All Conferences');
+    populateSelectControl(conferenceSelect, conferences, 'All Conferences / Divisions');
     populateSelectControl(bookSelect, books, 'All Books');
 
     const handler = () => renderAllTabs();
@@ -1927,34 +2005,61 @@ function renderEvCharts(games) {
   });
 }
 
-async function loadOverview() {
-  // 1) STATS
-  const stats = await getJson('/api/stats');
-  if (!stats.success) throw new Error('Stats endpoint returned success=false');
-  const s = stats.data;
+async function loadSportData() {
+  try {
+    const [statsResp, gamesResp] = await Promise.all([
+      getJson(withSport('/api/stats')),
+      getJson(withSport('/api/games'))
+    ]);
 
-  // Update stat cards (use live values)
-  const totalGames = s.totalGames ?? 0;
-  const spreadCov = formatPct(s.spreadCoverage);
-  const totalsCov = formatPct(s.totalsCoverage);
-  const booksCount = Array.isArray(s.sportsbooks) ? s.sportsbooks.length : 0;
+    if (!statsResp.success) throw new Error('Stats endpoint returned success=false');
+    if (!gamesResp.success) throw new Error('Games endpoint returned success=false');
 
-  document.getElementById('overview-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
-    <div class="stat-card"><div class="stat-number">${spreadCov}%</div><div class="stat-label">Spread Coverage</div></div>
-    <div class="stat-card"><div class="stat-number">${totalsCov}%</div><div class="stat-label">Totals Coverage</div></div>
-    <div class="stat-card"><div class="stat-number">${booksCount}</div><div class="stat-label">Books</div></div>
-  `;
+    const statsData = statsResp.data || {};
+    const games = Array.isArray(gamesResp.data) ? gamesResp.data : [];
 
-  // 2) GAMES
-  const gamesResp = await getJson('/api/games');
-  const games = Array.isArray(gamesResp.data) ? gamesResp.data : [];
-  ALL_GAMES = games;
-  initializeFilters(s);
-  renderAllTabs();
+    ALL_GAMES = games;
+    CURRENT_SEASON = determineCurrentSeason(statsData);
+
+    updateSportUI();
+    initializeFilters(statsData);
+
+    const totalGames = Number(statsData.totalGames ?? games.length ?? 0) || 0;
+    const spreadCov = formatPct(statsData.spreadCoverage);
+    const totalsCov = formatPct(statsData.totalsCoverage);
+    const spreadDisplay = spreadCov === '—' ? '—' : `${spreadCov}%`;
+    const totalsDisplay = totalsCov === '—' ? '—' : `${totalsCov}%`;
+    const booksCount = Array.isArray(statsData.sportsbooks) ? statsData.sportsbooks.length : 0;
+
+    const overviewStats = document.getElementById('overview-stats');
+    if (overviewStats) {
+      overviewStats.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
+        <div class="stat-card"><div class="stat-number">${spreadDisplay}</div><div class="stat-label">Spread Coverage</div></div>
+        <div class="stat-card"><div class="stat-number">${totalsDisplay}</div><div class="stat-label">Totals Coverage</div></div>
+        <div class="stat-card"><div class="stat-number">${booksCount}</div><div class="stat-label">Books</div></div>
+      `;
+    }
+
+    renderAllTabs();
+  } catch (error) {
+    console.error(`Failed to load ${CURRENT_SPORT} data:`, error);
+    const overviewStats = document.getElementById('overview-stats');
+    if (overviewStats) {
+      overviewStats.innerHTML = `
+        <div class="stat-card"><div class="stat-number">—</div><div class="stat-label">Unable to load data</div></div>
+      `;
+    }
+  }
 }
 
-document.addEventListener('DOMContentLoaded', loadOverview);
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-sport-button]').forEach(button => {
+    button.addEventListener('click', () => setSport(button.getAttribute('data-sport-button')));
+  });
+  updateSportUI();
+  loadSportData();
+});
 </script>
 
 </body>
