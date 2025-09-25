@@ -90,6 +90,8 @@
       <button class="tab" onclick="showTab('totals')">🎯 Totals</button>
       <button class="tab" onclick="showTab('teams')">🏟️ Team Analyzer</button>
       <button class="tab" onclick="showTab('historical')">📚 Historical Data</button>
+      <!-- New NFL Advanced tab button -->
+      <button class="tab" onclick="showTab('nflAdvanced')">🚀 NFL Advanced</button>
     </div>
 
     <div id="overview" class="tab-content active">
@@ -484,6 +486,44 @@
     <p>🏈 Football Professional Betting Analysis Dashboard | Enhanced with Sharp Money Detection & EV Calculations</p>
     <p>Built with Advanced Analytics | Optimized for Professional Bettors</p>
   </div>
+
+    <!-- Begin NFL Advanced Tab Content -->
+    <div id="nflAdvanced" class="tab-content">
+      <div class="section">
+        <h2>Advanced NFL Analysis</h2>
+        <p>This view highlights sharp money detection, arbitrage scanning, closing‑line value and heat‑map style indicators for professional football.</p>
+      </div>
+      <div class="section">
+        <h2>Enhanced NFL Games Table</h2>
+        <p>Signals like ARB, STEAM and REVERSE moves, best odds, line movement and profit margins are calculated automatically.</p>
+        <div class="table-container">
+          <table id="nflTable" style="width:100%; border-collapse:collapse; font-size:0.92em">
+            <thead style="background:linear-gradient(90deg, rgba(255,107,53,.18), rgba(247,147,30,.18)); color:#333; text-transform:uppercase; letter-spacing:0.05em; font-size:0.78em">
+              <tr>
+                <th>Season</th>
+                <th>Week</th>
+                <th>Date</th>
+                <th>Matchup</th>
+                <th>Spread (Opening)</th>
+                <th>Signals</th>
+                <th>Best Odds</th>
+                <th>Line Move</th>
+                <th>Arb Profit</th>
+                <th>CLV</th>
+              </tr>
+            </thead>
+            <tbody id="nfl-table-body">
+              <tr class="empty-row"><td colspan="10">Loading NFL games…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="section">
+        <h2>Professional Analytics</h2>
+        <p>Steam move detection (≥2.5 points), reverse line movement, best‑odds aggregation and profit margin calculations for arbitrage are displayed in the table above.</p>
+      </div>
+    </div>
+    <!-- End NFL Advanced Tab Content -->
 
   <!-- … keep everything above unchanged … -->
 
@@ -2065,6 +2105,9 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSportData();
 });
 </script>
+
+  <!-- Load advanced NFL analytics after the main script definitions -->
+  <script src="nfl-analytics.js"></script>
 
 </body>
 </html>
