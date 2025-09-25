@@ -129,7 +129,7 @@ The application expects game data with the following structure:
 
 ## 🔧 Configuration
 
-### Environment Variables (optional)
+### Environment Variables
 ```env
 PORT=3000                    # Server port
 NODE_ENV=development         # Environment mode
@@ -147,6 +147,14 @@ SUPABASE_ORDER_COLUMN=start_date
 SUPABASE_ORDER_ASC=false
 
 # Optional Upstash Redis shared cache
+PORT=3000                                # Server port
+NODE_ENV=development                     # Environment mode
+
+# Supabase (provided automatically when using the Vercel extension)
+SUPABASE_URL=...                         # or NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_ANON_KEY=...                    # or NEXT_PUBLIC_SUPABASE_ANON_KEY / service role key
+
+# Upstash Redis (provided automatically when using the Vercel extension
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
@@ -155,6 +163,10 @@ When Supabase credentials are provided the server first attempts to load the req
 the configured table and only falls back to JSON/demo data if no rows are returned. If Upstash Redis
 is configured the responses are cached with a shared TTL; otherwise the server reuses an in-memory
 cache identical to the original behaviour.
+When the Supabase credentials are supplied, game data is fetched directly from the configured tables
+(`ncaaf_games` and `nfl_games`). If no rows are returned—or Supabase is not configured—the server falls
+back to local JSON files and, ultimately, to generated demo data. Upstash Redis powers the shared cache
+for API responses; if its credentials are absent, the server degrades gracefully to in-memory caching.
 
 ### Data File Locations
 - JSON data: `data/ncaaf-games.json`
@@ -163,7 +175,7 @@ cache identical to the original behaviour.
 
 ## 📈 Performance Optimizations
 
-- **In-memory caching** for game data (5-minute refresh)
+- **Upstash Redis caching** with automatic in-memory fallback (5-minute refresh)
 - **Lazy loading** for large datasets  
 - **Efficient filtering** algorithms for real-time updates
 - **Chart reuse** to minimize memory usage
