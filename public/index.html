@@ -807,11 +807,7 @@ function populateAllFilters() {
   const exportBtn = document.getElementById('btn-export');
   if (exportBtn) exportBtn.onclick = exportCSV;
 }
-function detectSharpMoneyMovement(games) {
-    return games.map(game => {
-        const spreadMove = Math.abs((game.current_spread || game.spread) - game.opening_spread);
-        const totalMove = Math.abs((game.current_total || game.total) - game.opening_total);
-   
+
 function filterGamesForScope(scope) {
   if (!Array.isArray(ALL_GAMES)) return [];
   const ids = filterScopes[scope];
