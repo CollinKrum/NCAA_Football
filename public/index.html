@@ -50,6 +50,11 @@
     .btn-export:active { transform:translateY(0); box-shadow:0 3px 6px rgba(0,0,0,.15) }
     .games-count { font-size:0.9em; color:#555 }
     .table-container { margin-top:12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); overflow:hidden; box-shadow:0 6px 12px rgba(0,0,0,.08); background:#fff }
+    .muted { color:#5a5a5a; font-size:0.8em; }
+    .signal-chip { display:inline-block; background:rgba(255,107,53,.15); color:#ff6b35; padding:2px 8px; border-radius:999px; font-size:0.75em; font-weight:600; margin:2px 4px 2px 0; letter-spacing:0.05em; text-transform:uppercase; }
+    #nflTable th, #nflTable td { padding:12px 10px; vertical-align:top; }
+    #nflTable td { line-height:1.45; }
+    #nflTable strong { color:#1e3c72; }
     #gamesTable { width:100%; border-collapse:collapse; font-size:0.92em }
     #gamesTable thead { background:linear-gradient(90deg, rgba(255,107,53,.18), rgba(247,147,30,.18)); color:#333; text-transform:uppercase; letter-spacing:0.05em; font-size:0.78em }
     #gamesTable th, #gamesTable td { padding:10px 12px; text-align:left; border-bottom:1px solid rgba(0,0,0,.05); white-space:nowrap }
@@ -495,7 +500,7 @@
       </div>
       <div class="section">
         <h2>Enhanced NFL Games Table</h2>
-        <p>Signals like ARB, STEAM and REVERSE moves, best odds, line movement and profit margins are calculated automatically.</p>
+        <p>Track open/min/max/close for spreads, totals and moneylines with automatic steam, reverse, arbitrage and volatility detection sourced directly from the NFL workbook.</p>
         <div class="table-container">
           <table id="nflTable" style="width:100%; border-collapse:collapse; font-size:0.92em">
             <thead style="background:linear-gradient(90deg, rgba(255,107,53,.18), rgba(247,147,30,.18)); color:#333; text-transform:uppercase; letter-spacing:0.05em; font-size:0.78em">
@@ -503,24 +508,23 @@
                 <th>Season</th>
                 <th>Week</th>
                 <th>Date</th>
-                <th>Matchup</th>
-                <th>Spread (Opening)</th>
+                <th>Matchup &amp; Context</th>
+                <th>Spread Movement</th>
+                <th>Moneyline Movement</th>
+                <th>Total &amp; O/U Odds</th>
                 <th>Signals</th>
-                <th>Best Odds</th>
-                <th>Line Move</th>
-                <th>Arb Profit</th>
-                <th>CLV</th>
+                <th>Edge Metrics</th>
               </tr>
             </thead>
             <tbody id="nfl-table-body">
-              <tr class="empty-row"><td colspan="10">Loading NFL games…</td></tr>
+              <tr class="empty-row"><td colspan="9">Loading NFL games…</td></tr>
             </tbody>
           </table>
         </div>
       </div>
       <div class="section">
         <h2>Professional Analytics</h2>
-        <p>Steam move detection (≥2.5 points), reverse line movement, best‑odds aggregation and profit margin calculations for arbitrage are displayed in the table above.</p>
+        <p>Steam moves (spread, total, moneyline), reverse action, arbitrage edges, implied probability shifts and volatility scores are recalculated every time fresh NFL data is loaded.</p>
       </div>
     </div>
     <!-- End NFL Advanced Tab Content -->
