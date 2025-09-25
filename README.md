@@ -129,54 +129,32 @@ The application expects game data with the following structure:
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Environment Variables (optional)
 ```env
-PORT=3000                                # Server port
-NODE_ENV=development                     # Environment mode
+PORT=3000                    # Server port
+NODE_ENV=development         # Environment mode
+CACHE_DURATION=300000        # Data cache duration (5 minutes)
 
-# Supabase (provided automatically when using the Vercel extension)
-SUPABASE_URL=...                         # or NEXT_PUBLIC_SUPABASE_URL
-SUPABASE_ANON_KEY=...                    # or NEXT_PUBLIC_SUPABASE_ANON_KEY / service role key
-SUPABASE_MAX_ROWS=2000                   # Optional cap on returned rows per query
-SUPABASE_GAMES_TABLE=games               # Optional shared table name override
-SUPABASE_NCAAF_TABLE=...                 # Optional sport-specific table name
-SUPABASE_NFL_TABLE=...                   # Optional sport-specific table name
-SUPABASE_SPORT_COLUMN=sport              # Column used when filtering by sport
-SUPABASE_NCAAF_FILTER_VALUE=NCAAF        # Value matched against SUPABASE_SPORT_COLUMN
-SUPABASE_NFL_FILTER_VALUE=NFL            # Value matched against SUPABASE_SPORT_COLUMN
-SUPABASE_ORDER_COLUMN=start_date         # Default ordering column (falls back per sport)
-SUPABASE_NCAAF_ORDER_COLUMN=...          # Optional per-sport ordering column
-SUPABASE_NFL_ORDER_COLUMN=...            # Optional per-sport ordering column
-SUPABASE_ORDER_ASC=false                 # Set to true to sort ascending (per sport overrides available)
-SUPABASE_NCAAF_ORDER_ASC=false
-SUPABASE_NFL_ORDER_ASC=false
+# Optional Supabase configuration (fetched before falling back to local files)
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_TABLE=games
+SUPABASE_GAMES_TABLE=games
+SUPABASE_SPORT_COLUMN=sport
+SUPABASE_MAX_ROWS=2000
+SUPABASE_ORDER_COLUMN=start_date
+SUPABASE_ORDER_ASC=false
 
-# Upstash Redis (provided automatically when using the Vercel extension)
+# Optional Upstash Redis shared cache
 UPSTASH_REDIS_REST_URL=...
 UPSTASH_REDIS_REST_TOKEN=...
 ```
 
-When the Supabase credentials are supplied, game data is fetched directly from the configured tables
-(defaults to a shared `games` table filtered by sport, but fully overrideable via the environment).
-If no rows are returned—or Supabase is not configured—the server falls back to local JSON files and,
-ultimately, to generated demo data. Upstash Redis powers the shared cache
-for API responses; if its credentials are absent, the server degrades gracefully to in-memory caching.
-
-### Connecting Vercel Extensions
-
-1. **Install the Supabase extension** for your Vercel project and link it to the GitHub repository.
-   * The extension automatically injects `SUPABASE_URL` and `SUPABASE_ANON_KEY` into your deployment.
-   * Update the optional environment variables above if your Supabase tables or column names differ from the defaults.
-2. **Install the Upstash Redis extension** and choose (or create) a Redis database.
-   * Vercel will populate `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for your deployments.
-   * The server automatically writes and reads cached payloads using these credentials, with graceful
-     fallback to in-memory caching if the variables are absent.
-3. **Redeploy the project** once the extensions are connected so that the new environment variables are
-   available during the build and runtime phases.
-4. **Verify connectivity** locally by exporting the same variables (e.g. via `direnv` or an `.env` file) and running `npm run dev`.
-
-With both extensions active the dashboard will source live data from Supabase (per the configured table
-and filters) and share cached responses across Vercel edge locations via Upstash Redis.
+When Supabase credentials are provided the server first attempts to load the requested sport from
+the configured table and only falls back to JSON/demo data if no rows are returned. If Upstash Redis
+is configured the responses are cached with a shared TTL; otherwise the server reuses an in-memory
+cache identical to the original behaviour.
 
 ### Data File Locations
 - JSON data: `data/ncaaf-games.json`
@@ -185,7 +163,7 @@ and filters) and share cached responses across Vercel edge locations via Upstash
 
 ## 📈 Performance Optimizations
 
-- **Upstash Redis caching** with automatic in-memory fallback (5-minute refresh)
+- **In-memory caching** for game data (5-minute refresh)
 - **Lazy loading** for large datasets  
 - **Efficient filtering** algorithms for real-time updates
 - **Chart reuse** to minimize memory usage

@@ -11,139 +11,41 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Serve your HTML files from 'public' folder
 
-// Cache configuration (shared Redis via Upstash + local fallback)
-const CACHE_DURATION_SECONDS = 5 * 60; // 5 minutes
-const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
-const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+// In-memory cache for games data
+const CACHE_DURATION = Number.parseInt(process.env.CACHE_DURATION || '', 10) || 5 * 60 * 1000; // 5 minutes default
+const CACHE_TTL_SECONDS = Math.max(60, Math.floor(CACHE_DURATION / 1000));
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || null;
 const supabaseKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.SUPABASE_ANON_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-const SUPABASE_MAX_ROWS = Math.max(
-  1,
-  Number.parseInt(process.env.SUPABASE_MAX_ROWS || '2000', 10) || 2000
-);
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  null;
+const supabaseTable = process.env.SUPABASE_TABLE || process.env.SUPABASE_GAMES_TABLE || 'games';
 const SUPABASE_SPORT_COLUMN = (process.env.SUPABASE_SPORT_COLUMN || 'sport').trim();
-const SUPABASE_NCAAF_FILTER_VALUE = (process.env.SUPABASE_NCAAF_FILTER_VALUE || 'NCAAF').trim();
-const SUPABASE_NFL_FILTER_VALUE = (process.env.SUPABASE_NFL_FILTER_VALUE || 'NFL').trim();
-const SUPABASE_GLOBAL_ORDER_COLUMN = (process.env.SUPABASE_ORDER_COLUMN || '').trim() || 'start_date';
-const SUPABASE_NCAAF_ORDER_COLUMN =
-  (process.env.SUPABASE_NCAAF_ORDER_COLUMN || '').trim() || SUPABASE_GLOBAL_ORDER_COLUMN;
-const SUPABASE_NFL_ORDER_COLUMN =
-  (process.env.SUPABASE_NFL_ORDER_COLUMN || '').trim() || SUPABASE_GLOBAL_ORDER_COLUMN;
+const SUPABASE_MAX_ROWS = Math.max(1, Number.parseInt(process.env.SUPABASE_MAX_ROWS || '', 10) || 2000);
+const SUPABASE_ORDER_COLUMN = (process.env.SUPABASE_ORDER_COLUMN || 'start_date').trim();
+const SUPABASE_ORDER_ASC = /^true$/i.test(String(process.env.SUPABASE_ORDER_ASC || ''));
 
-function parseEnvBoolean(value, fallback = false) {
-  if (typeof value === 'undefined' || value === null || value === '') {
-    return fallback;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  return ['1', 'true', 't', 'yes', 'y', 'on'].includes(normalized);
-}
-
-const SUPABASE_GLOBAL_ORDER_ASC = parseEnvBoolean(process.env.SUPABASE_ORDER_ASC, false);
-const SUPABASE_NCAAF_ORDER_ASC = parseEnvBoolean(
-  process.env.SUPABASE_NCAAF_ORDER_ASC,
-  SUPABASE_GLOBAL_ORDER_ASC
-);
-const SUPABASE_NFL_ORDER_ASC = parseEnvBoolean(
-  process.env.SUPABASE_NFL_ORDER_ASC,
-  SUPABASE_GLOBAL_ORDER_ASC
-);
-
-const supabaseTables = {
-  ncaaf:
-    process.env.SUPABASE_NCAAF_TABLE ||
-    process.env.SUPABASE_GAMES_TABLE ||
-    'games',
-  nfl:
-    process.env.SUPABASE_NFL_TABLE ||
-    process.env.SUPABASE_GAMES_TABLE ||
-    'games'
-};
-
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || null;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 const hasUpstash = Boolean(upstashUrl && upstashToken);
-const hasSupabase = Boolean(supabaseUrl && supabaseKey);
-
-const normalizedUpstashUrl = hasUpstash ? upstashUrl.replace(/\/+$/, '') : null;
-const upstashPipelineUrl = normalizedUpstashUrl
-  ? (normalizedUpstashUrl.endsWith('/pipeline')
-      ? normalizedUpstashUrl
-      : `${normalizedUpstashUrl}/pipeline`)
+const upstashPipelineUrl = hasUpstash
+  ? upstashUrl.replace(/\/+$/, '').concat(upstashUrl.endsWith('/pipeline') ? '' : '/pipeline')
   : null;
 
+const hasSupabase = Boolean(supabaseUrl && supabaseKey);
+const supabaseClient = hasSupabase
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
+
+if (!hasSupabase) {
+  console.warn('⚠️  Supabase environment variables not configured. Falling back to local files when needed.');
+}
+
 if (!hasUpstash) {
-  console.warn('⚠️  Upstash Redis environment variables not configured. Falling back to in-memory caching.');
+  console.warn('⚠️  Upstash Redis environment variables not configured. Using in-memory caching only.');
 }
-
-let supabaseClient = null;
-
-if (hasSupabase) {
-  supabaseClient = createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: false
-    }
-  });
-} else {
-  console.warn('⚠️  Supabase environment variables not configured. Falling back to JSON/demo data.');
-}
-
-async function executeUpstashCommand(...args) {
-  if (!hasUpstash || !upstashPipelineUrl) return null;
-
-  const response = await fetch(upstashPipelineUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${upstashToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify([args])
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Upstash request failed (${response.status}): ${body}`);
-  }
-
-  const payload = await response.json();
-  const [result] = Array.isArray(payload) ? payload : [];
-
-  if (!result) {
-    return null;
-  }
-
-  if (result.error) {
-    throw new Error(`Upstash error: ${result.error}`);
-  }
-
-  return Object.prototype.hasOwnProperty.call(result, 'result') ? result.result : null;
-}
-
-async function readCache(key) {
-  try {
-    const result = await executeUpstashCommand('GET', key);
-    if (typeof result === 'string') {
-      return JSON.parse(result);
-    }
-    return null;
-  } catch (error) {
-    console.error(`⚠️  Unable to read cache for key ${key}:`, error.message);
-    return null;
-  }
-}
-
-async function writeCache(key, value) {
-  try {
-    await executeUpstashCommand('SET', key, JSON.stringify(value), 'EX', CACHE_DURATION_SECONDS);
-  } catch (error) {
-    console.error(`⚠️  Unable to write cache for key ${key}:`, error.message);
-  }
-}
-
-// In-memory cache for games data (fallback when Upstash is unavailable)
-const CACHE_DURATION = CACHE_DURATION_SECONDS * 1000;
 
 const DEFAULT_SPORT = 'ncaaf';
 
@@ -152,37 +54,13 @@ const SPORT_CONFIG = {
     label: 'NCAAF',
     dataFile: path.join(__dirname, 'data/ncaaf-games.json'),
     mapper: mapNCAAFGame,
-    demo: generateNCAAFDemoData,
-    supabase: {
-      table: supabaseTables.ncaaf,
-      filter: query => {
-        if (SUPABASE_SPORT_COLUMN && SUPABASE_NCAAF_FILTER_VALUE) {
-          return query.eq(SUPABASE_SPORT_COLUMN, SUPABASE_NCAAF_FILTER_VALUE);
-        }
-        return query;
-      },
-      orderBy: SUPABASE_NCAAF_ORDER_COLUMN
-        ? { column: SUPABASE_NCAAF_ORDER_COLUMN, ascending: SUPABASE_NCAAF_ORDER_ASC }
-        : null
-    }
+    demo: generateNCAAFDemoData
   },
   nfl: {
     label: 'NFL',
     dataFile: path.join(__dirname, 'data/nfl-games.json'),
     mapper: mapNFLGame,
-    demo: generateNFLDemoData,
-    supabase: {
-      table: supabaseTables.nfl,
-      filter: query => {
-        if (SUPABASE_SPORT_COLUMN && SUPABASE_NFL_FILTER_VALUE) {
-          return query.eq(SUPABASE_SPORT_COLUMN, SUPABASE_NFL_FILTER_VALUE);
-        }
-        return query;
-      },
-      orderBy: SUPABASE_NFL_ORDER_COLUMN
-        ? { column: SUPABASE_NFL_ORDER_COLUMN, ascending: SUPABASE_NFL_ORDER_ASC }
-        : null
-    }
+    demo: generateNFLDemoData
   }
 };
 
@@ -190,32 +68,58 @@ const gameCaches = Object.fromEntries(
   Object.keys(SPORT_CONFIG).map(sport => [sport, { data: null, timestamp: null }])
 );
 
-async function getCachedGames(sport) {
-  const cacheKey = `games:${sport}`;
+async function executeUpstashCommand(command, ...args) {
+  if (!hasUpstash || !upstashPipelineUrl) return null;
 
-  if (hasUpstash) {
-    const cached = await readCache(cacheKey);
-    if (Array.isArray(cached) && cached.length > 0) {
-      console.log(`📦 Serving ${SPORT_CONFIG[sport].label} games from Upstash cache`);
-      return cached;
+  try {
+    const response = await fetch(upstashPipelineUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${upstashToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify([[command, ...args]])
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Upstash request failed (${response.status}): ${text}`);
     }
-  }
 
-  const memoryCache = gameCaches[sport];
-  if (memoryCache.data && Date.now() - memoryCache.timestamp < CACHE_DURATION) {
-    console.log(`📦 Serving ${SPORT_CONFIG[sport].label} games from in-memory cache`);
-    return memoryCache.data;
-  }
+    const payload = await response.json();
+    const [result] = Array.isArray(payload) ? payload : [];
 
-  return null;
+    if (!result) return null;
+    if (result.error) throw new Error(result.error);
+
+    return Object.prototype.hasOwnProperty.call(result, 'result') ? result.result : null;
+  } catch (error) {
+    console.error('⚠️  Upstash command failed:', error.message);
+    return null;
+  }
 }
 
-async function setCachedGames(sport, games) {
-  const cacheKey = `games:${sport}`;
-  gameCaches[sport] = { data: games, timestamp: Date.now() };
+async function readSharedCache(cacheKey) {
+  if (!hasUpstash) return null;
 
-  if (hasUpstash) {
-    await writeCache(cacheKey, games);
+  const serialized = await executeUpstashCommand('GET', cacheKey);
+  if (typeof serialized !== 'string') return null;
+
+  try {
+    return JSON.parse(serialized);
+  } catch (error) {
+    console.error(`⚠️  Failed to parse cached payload for ${cacheKey}:`, error.message);
+    return null;
+  }
+}
+
+async function writeSharedCache(cacheKey, value) {
+  if (!hasUpstash) return;
+
+  try {
+    await executeUpstashCommand('SET', cacheKey, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
+  } catch (error) {
+    console.error(`⚠️  Unable to persist cache for ${cacheKey}:`, error.message);
   }
 }
 
@@ -254,31 +158,50 @@ const NFL_DIVISIONS = {
   'Washington Commanders': 'NFC East'
 };
 
-// Load games from JSON
+// Load games from Supabase, shared cache, or JSON
 async function loadGamesForSport(requestedSport) {
   const sport = resolveSportKey(requestedSport);
   const config = SPORT_CONFIG[sport];
-  const { dataFile, mapper, demo, label, supabase } = config;
+  const { label } = config;
+  const cacheKey = `games:${sport}`;
 
-  const cachedGames = await getCachedGames(sport);
-  if (cachedGames) {
-    return cachedGames;
+  const cached = await readSharedCache(cacheKey);
+  if (Array.isArray(cached) && cached.length) {
+    console.log(`💾 Loaded ${cached.length} ${label} games from shared cache`);
+    return cached;
   }
 
-  if (supabaseClient && supabase && supabase.table) {
-    const supabaseGames = await loadGamesFromSupabase(supabase, mapper, label);
-    if (Array.isArray(supabaseGames) && supabaseGames.length > 0) {
-      await setCachedGames(sport, supabaseGames);
-      return supabaseGames;
+  let games = [];
+
+  if (hasSupabase) {
+    try {
+      games = await fetchSupabaseGames(sport);
+      if (games.length) {
+        console.log(`☁️  Loaded ${games.length} ${label} games from Supabase`);
+      }
+    } catch (error) {
+      console.error(`⚠️  Failed to load ${label} games from Supabase:`, error.message);
     }
   }
+
+  if (!Array.isArray(games) || games.length === 0) {
+    games = await loadLocalGames(config);
+  }
+
+  if (Array.isArray(games) && games.length) {
+    await writeSharedCache(cacheKey, games);
+  }
+
+  return games;
+}
+
+async function loadLocalGames(config) {
+  const { dataFile, mapper, demo, label } = config;
 
   try {
     if (!fs.existsSync(dataFile)) {
       console.log(`[${label}] JSON file not found, using demo data...`);
-      const demoGames = demo();
-      await setCachedGames(sport, demoGames);
-      return demoGames;
+      return demo();
     }
 
     console.log(`📂 Reading ${label} JSON file...`);
@@ -288,74 +211,42 @@ async function loadGamesForSport(requestedSport) {
 
     const games = rawGames.map(mapper).filter(Boolean);
     console.log(`✅ Loaded ${games.length} ${label} games from JSON file`);
-    await setCachedGames(sport, games);
     return games;
   } catch (error) {
     console.error(`❌ Error reading ${label} JSON:`, error.message);
     console.log(`🔄 Falling back to ${label} demo data`);
-    const demoGames = demo();
-    await setCachedGames(sport, demoGames);
-    return demoGames;
+    return demo();
   }
 }
 
-async function loadGamesFromSupabase(config, mapper, label) {
-  if (!supabaseClient || !config || !config.table) return null;
+async function fetchSupabaseGames(sport) {
+  if (!supabaseClient) return [];
 
-  const { table, filter, orderBy, select = '*', limit } = config;
+  const config = SPORT_CONFIG[sport];
+  if (!config) return [];
 
-  try {
-    console.log(`☁️  Fetching ${label} games from Supabase table "${table}"...`);
+  let query = supabaseClient.from(supabaseTable).select('*').limit(SUPABASE_MAX_ROWS);
 
-    let query = supabaseClient.from(table).select(select);
-
-    if (typeof filter === 'function') {
-      const filteredQuery = filter(query);
-      if (filteredQuery) {
-        query = filteredQuery;
-      }
-    }
-
-    if (orderBy && orderBy.column) {
-      try {
-        query = query.order(orderBy.column, {
-          ascending: Boolean(orderBy.ascending),
-          nullsFirst: Boolean(orderBy.nullsFirst)
-        });
-      } catch (orderError) {
-        console.warn(
-          `⚠️  Unable to apply Supabase order on column "${orderBy.column}" for table "${table}":`,
-          orderError.message
-        );
-      }
-    }
-
-    query = query.limit(Number.isFinite(limit) ? Math.max(1, limit) : SUPABASE_MAX_ROWS);
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      console.warn(`⚠️  Supabase table "${table}" returned no rows.`);
-      return null;
-    }
-
-    const games = data.map(mapper).filter(Boolean);
-
-    if (games.length === 0) {
-      console.warn(`⚠️  Supabase data for table "${table}" did not produce any mapped games.`);
-      return null;
-    }
-
-    console.log(`✅ Loaded ${games.length} ${label} games from Supabase`);
-    return games;
-  } catch (error) {
-    console.error(`❌ Error loading ${label} games from Supabase:`, error.message);
-    return null;
+  if (SUPABASE_SPORT_COLUMN) {
+    query = query.eq(SUPABASE_SPORT_COLUMN, config.label);
   }
+
+  if (SUPABASE_ORDER_COLUMN) {
+    query = query.order(SUPABASE_ORDER_COLUMN, {
+      ascending: SUPABASE_ORDER_ASC,
+      nullsFirst: false
+    });
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data.map(record => mapSupabaseRow(record, sport)).filter(Boolean)
+    : [];
 }
 // Generate demo NCAAF data if JSON not available
 function generateNCAAFDemoData() {
@@ -506,49 +397,93 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function normalizeDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString();
+  }
+
+  return typeof value === 'string' ? value : null;
+}
+
+function resolveOptionalBoolean(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value;
+  return toBoolean(value);
+}
+
+function mapSupabaseRow(row = {}, sportKey) {
+  if (!row || typeof row !== 'object') return null;
+
+  const payload = {
+    id: row.id ?? row.game_id ?? row.uuid ?? null,
+    sport: sportKey,
+    season: toNumber(row.season ?? row.Season),
+    week: toNumber(row.week ?? row.Week),
+    startDate: normalizeDateValue(row.start_date ?? row.startDate ?? row.game_date ?? row.kickoff_at),
+    homeTeam: row.home_team ?? row.HomeTeam ?? row.homeTeam ?? null,
+    awayTeam: row.away_team ?? row.AwayTeam ?? row.awayTeam ?? null,
+    homeConference: row.home_conference ?? row.HomeConference ?? row.homeConference ?? null,
+    awayConference: row.away_conference ?? row.AwayConference ?? row.awayConference ?? null,
+    homeScore: toNumber(row.home_score ?? row.HomeScore ?? row.homeScore ?? row.home_points),
+    awayScore: toNumber(row.away_score ?? row.AwayScore ?? row.awayScore ?? row.away_points),
+    spread: toNumber(row.spread ?? row.closing_spread ?? row.line),
+    overUnder: toNumber(row.over_under ?? row.total ?? row.closing_total),
+    openingSpread: toNumber(row.opening_spread ?? row.OpeningSpread ?? row.openingSpread),
+    openingOverUnder: toNumber(row.opening_over_under ?? row.OpeningOverUnder ?? row.openingOverUnder ?? row.opening_total),
+    homeMoneyline: toNumber(row.home_moneyline ?? row.HomeMoneyline ?? row.homeMoneyline),
+    awayMoneyline: toNumber(row.away_moneyline ?? row.AwayMoneyline ?? row.awayMoneyline),
+    seasonType: row.season_type ?? row.SeasonType ?? row.seasonType ?? null,
+    completed: resolveOptionalBoolean(row.completed ?? row.Completed ?? row.is_completed),
+    lineProvider: row.line_provider ?? row.lineProvider ?? row.sportsbook ?? null,
+    neutralVenue: resolveOptionalBoolean(row.neutral_venue ?? row.neutralVenue ?? row.neutral_site),
+    playoffGame: resolveOptionalBoolean(row.playoff_game ?? row.playoffGame ?? row.is_playoff),
+    notes: row.notes ?? null,
+    lineMovement: toNumber(row.line_movement ?? row.lineMovement),
+    totalMovement: toNumber(row.total_movement ?? row.totalMovement),
+    homeProbShift: toNumber(row.home_prob_shift ?? row.homeProbShift),
+    awayProbShift: toNumber(row.away_prob_shift ?? row.awayProbShift),
+    isSteamMove: resolveOptionalBoolean(row.is_steam_move ?? row.isSteamMove),
+    isReverseMove: resolveOptionalBoolean(row.is_reverse_move ?? row.isReverseMove),
+    hasArbitrage: resolveOptionalBoolean(row.has_arbitrage ?? row.hasArbitrage),
+    volatilityScore: toNumber(row.volatility_score ?? row.volatilityScore)
+  };
+
+  return payload;
+}
+
 function resolveSportKey(value) {
   const key = String(value || '').toLowerCase();
   return SPORT_CONFIG[key] ? key : DEFAULT_SPORT;
 }
 
 function mapNCAAFGame(game = {}) {
-  const id = game.id ?? game.Id ?? game.game_id ?? null;
-  const season = game.season ?? game.Season ?? null;
-  const week = game.week ?? game.Week ?? null;
-  const startDate = game.start_date ?? game.StartDate ?? game.startDate ?? null;
-  const homeTeam =
-    game.home_team ?? game.HomeTeam_x ?? game.HomeTeam ?? game.homeTeam ?? null;
-  const awayTeam =
-    game.away_team ?? game.AwayTeam_x ?? game.AwayTeam ?? game.awayTeam ?? null;
-  const homeConference =
-    game.home_conference ?? game.HomeConference ?? game.homeConference ?? null;
-  const awayConference =
-    game.away_conference ?? game.AwayConference ?? game.awayConference ?? null;
-  const homeScore = toNumber(game.home_score ?? game.HomeScore ?? game.homeScore);
-  const awayScore = toNumber(game.away_score ?? game.AwayScore ?? game.awayScore);
-  const spread = toNumber(game.spread ?? game.Spread);
-  const overUnder = toNumber(game.over_under ?? game.OverUnder ?? game.total);
-  const openingSpread = toNumber(
-    game.opening_spread ?? game.OpeningSpread ?? game.openingSpread
-  );
-  const openingOverUnder = toNumber(
-    game.opening_over_under ?? game.OpeningOverUnder ?? game.openingOverUnder
-  );
-  const homeMoneyline = toNumber(
-    game.home_moneyline ?? game.HomeMoneyline ?? game.homeMoneyline
-  );
-  const awayMoneyline = toNumber(
-    game.away_moneyline ?? game.AwayMoneyline ?? game.awayMoneyline
-  );
-  const completedRaw =
-    game.completed ?? game.Completed ?? game.game_completed ?? null;
-  const completed = typeof completedRaw === 'boolean'
-    ? completedRaw
+  const id = game.Id ?? game.id ?? null;
+  const season = game.Season ?? game.season ?? null;
+  const week = game.Week ?? game.week ?? null;
+  const startDate = game.StartDate ?? game.startDate ?? null;
+  const homeTeam = game.HomeTeam_x ?? game.HomeTeam ?? game.homeTeam ?? null;
+  const awayTeam = game.AwayTeam_x ?? game.AwayTeam ?? game.awayTeam ?? null;
+  const homeConference = game.HomeConference ?? game.homeConference ?? null;
+  const awayConference = game.AwayConference ?? game.awayConference ?? null;
+  const homeScore = toNumber(game.HomeScore ?? game.homeScore);
+  const awayScore = toNumber(game.AwayScore ?? game.awayScore);
+  const spread = toNumber(game.Spread ?? game.spread);
+  const overUnder = toNumber(game.OverUnder ?? game.overUnder);
+  const openingSpread = toNumber(game.OpeningSpread ?? game.openingSpread);
+  const openingOverUnder = toNumber(game.OpeningOverUnder ?? game.openingOverUnder);
+  const homeMoneyline = toNumber(game.HomeMoneyline ?? game.homeMoneyline);
+  const awayMoneyline = toNumber(game.AwayMoneyline ?? game.awayMoneyline);
+  const completed = typeof game.Completed === 'boolean'
+    ? game.Completed
     : (Number.isFinite(homeScore) && Number.isFinite(awayScore));
-  const lineProvider =
-    game.line_provider ?? game.LineProvider ?? game.lineProvider ?? null;
-  const seasonType =
-    game.season_type ?? game.SeasonType ?? game.seasonType ?? null;
+  const lineProvider = game.LineProvider ?? game.lineProvider ?? null;
+  const seasonType = game.SeasonType ?? game.seasonType ?? null;
 
   return {
     id,
@@ -575,21 +510,8 @@ function mapNCAAFGame(game = {}) {
 }
 
 function pickNumericValue(game, key) {
-  if (!key || !game || typeof game !== 'object') return null;
-
-  const camelVariant = key.charAt(0).toLowerCase() + key.slice(1);
-  const snakeVariant = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
-    .toLowerCase();
-
-  const variants = Array.from(
-    new Set(
-      [key, camelVariant, snakeVariant, snakeVariant.replace(/_/g, '')]
-        .filter(Boolean)
-    )
-  );
-
+  if (!key) return null;
+  const variants = [key, key.charAt(0).toLowerCase() + key.slice(1)];
   for (const variant of variants) {
     if (Object.prototype.hasOwnProperty.call(game, variant)) {
       const num = toNumber(game[variant]);
@@ -621,17 +543,11 @@ function mapLineHistory(game, prefix) {
 
 function mapNFLGame(game = {}) {
   const base = mapNCAAFGame(game);
-  const neutralVenueRaw =
-    game.neutral_venue ?? game.NeutralVenue ?? game.neutralVenue ?? game.neutral_site ?? null;
-  const neutralVenue = typeof neutralVenueRaw === 'boolean'
-    ? neutralVenueRaw
-    : (neutralVenueRaw === null ? null : toBoolean(neutralVenueRaw));
-  const playoffRaw =
-    game.playoff_game ?? game.PlayoffGame ?? game.playoffGame ?? game.is_playoff_game;
-  const playoffGame = typeof playoffRaw === 'boolean'
-    ? playoffRaw
-    : toBoolean(playoffRaw);
-  const notes = game.notes ?? game.Notes ?? null;
+  const neutralVenue = game.NeutralVenue ?? game.neutralVenue ?? null;
+  const playoffGame = typeof game.PlayoffGame === 'boolean'
+    ? game.PlayoffGame
+    : toBoolean(game.PlayoffGame ?? game.playoffGame);
+  const notes = game.Notes ?? game.notes ?? null;
 
   return {
     ...base,
@@ -670,12 +586,25 @@ function toBoolean(value) {
 // Get cached games or load fresh data
 async function getGamesData(requestedSport) {
   const sport = resolveSportKey(requestedSport);
+  const cache = gameCaches[sport];
+  const now = Date.now();
+
+  if (cache.data && cache.timestamp && (now - cache.timestamp) < CACHE_DURATION) {
+    return cache.data;
+  }
 
   try {
-    return await loadGamesForSport(sport);
+    const games = await loadGamesForSport(sport);
+
+    if (!Array.isArray(games)) {
+      throw new Error('Games payload was not an array');
+    }
+
+    cache.data = games;
+    cache.timestamp = Date.now();
+    return games;
   } catch (error) {
     console.error(`Error loading ${sport} games data:`, error);
-    const cache = gameCaches[sport];
     return cache.data || [];
   }
 }
