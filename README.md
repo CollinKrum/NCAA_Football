@@ -168,6 +168,7 @@ When the Supabase credentials are supplied, game data is fetched directly from t
 back to local JSON files and, ultimately, to generated demo data. Upstash Redis powers the shared cache
 for API responses; if its credentials are absent, the server degrades gracefully to in-memory caching.
 
+
 ### Data File Locations
 - JSON data: `data/ncaaf-games.json`
 - Demo data: Auto-generated if no data file found

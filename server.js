@@ -27,11 +27,18 @@ const SUPABASE_MAX_ROWS = Math.max(1, Number.parseInt(process.env.SUPABASE_MAX_R
 const SUPABASE_ORDER_COLUMN = (process.env.SUPABASE_ORDER_COLUMN || 'start_date').trim();
 const SUPABASE_ORDER_ASC = /^true$/i.test(String(process.env.SUPABASE_ORDER_ASC || ''));
 
+const upstashRestUrl = process.env.UPSTASH_REDIS_REST_URL || null;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+const hasUpstash = Boolean(upstashRestUrl && upstashToken);
+const upstashPipelineUrl = hasUpstash
+  ? upstashRestUrl.replace(/\/+$/, '').concat(upstashRestUrl.endsWith('/pipeline') ? '' : '/pipeline')
+
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || null;
 const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 const hasUpstash = Boolean(upstashUrl && upstashToken);
 const upstashPipelineUrl = hasUpstash
   ? upstashUrl.replace(/\/+$/, '').concat(upstashUrl.endsWith('/pipeline') ? '' : '/pipeline')
+
   : null;
 
 const hasSupabase = Boolean(supabaseUrl && supabaseKey);
@@ -46,6 +53,7 @@ if (!hasSupabase) {
 if (!hasUpstash) {
   console.warn('⚠️  Upstash Redis environment variables not configured. Using in-memory caching only.');
 }
+
 // Cache configuration (shared Redis via Upstash + local fallback)
 const CACHE_DURATION_SECONDS = 5 * 60; // 5 minutes
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -126,6 +134,7 @@ async function writeCache(key, value) {
 // In-memory cache for games data (fallback when Upstash is unavailable)
 const CACHE_DURATION = CACHE_DURATION_SECONDS * 1000;
 
+
 const DEFAULT_SPORT = 'ncaaf';
 
 const SPORT_CONFIG = {
@@ -201,6 +210,7 @@ async function writeSharedCache(cacheKey, value) {
     await executeUpstashCommand('SET', cacheKey, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
   } catch (error) {
     console.error(`⚠️  Unable to persist cache for ${cacheKey}:`, error.message);
+
 async function getCachedGames(sport) {
   const cacheKey = `games:${sport}`;
 
@@ -226,7 +236,7 @@ async function setCachedGames(sport, games) {
   gameCaches[sport] = { data: games, timestamp: Date.now() };
 
   if (hasUpstash) {
-    await writeCache(cacheKey, games);
+    await writeCache(cacheKey, games)
   }
 }
 
@@ -378,6 +388,7 @@ async function loadGamesFromSupabase(table, mapper, label) {
     return null;
   }
 }
+
 
 async function fetchSupabaseGames(sport) {
   if (!supabaseClient) return [];
