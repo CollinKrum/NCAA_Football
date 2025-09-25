@@ -347,6 +347,10 @@ function renderNflAdvancedTable(games) {
   const tbody = document.getElementById('nfl-table-body');
   if (!tbody) return;
   tbody.innerHTML = '';
+  if (!Array.isArray(games) || !games.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9">No NFL games available for this view.</td></tr>';
+    return;
+  }
   games.forEach(game => {
     const tr = document.createElement('tr');
     const date = (game.startDate || '').split('T')[0] || '—';
