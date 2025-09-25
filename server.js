@@ -296,6 +296,38 @@ function mapNCAAFGame(game = {}) {
   };
 }
 
+function pickNumericValue(game, key) {
+  if (!key) return null;
+  const variants = [key, key.charAt(0).toLowerCase() + key.slice(1)];
+  for (const variant of variants) {
+    if (Object.prototype.hasOwnProperty.call(game, variant)) {
+      const num = toNumber(game[variant]);
+      if (num !== null) {
+        return num;
+      }
+    }
+  }
+  return null;
+}
+
+function mapOddsHistory(game, prefix) {
+  return {
+    open: pickNumericValue(game, `${prefix}Open`),
+    min: pickNumericValue(game, `${prefix}Min`),
+    max: pickNumericValue(game, `${prefix}Max`),
+    close: pickNumericValue(game, `${prefix}Close`) ?? pickNumericValue(game, prefix)
+  };
+}
+
+function mapLineHistory(game, prefix) {
+  return {
+    open: pickNumericValue(game, `${prefix}Open`),
+    min: pickNumericValue(game, `${prefix}Min`),
+    max: pickNumericValue(game, `${prefix}Max`),
+    close: pickNumericValue(game, `${prefix}Close`) ?? pickNumericValue(game, prefix)
+  };
+}
+
 function mapNFLGame(game = {}) {
   const base = mapNCAAFGame(game);
   const neutralVenue = game.NeutralVenue ?? game.neutralVenue ?? null;
@@ -311,7 +343,22 @@ function mapNFLGame(game = {}) {
     lineProvider: base.lineProvider || 'Consensus',
     neutralVenue,
     playoffGame,
-    notes
+    notes,
+    moneylineHistory: {
+      home: mapOddsHistory(game, 'HomeMoneyline'),
+      away: mapOddsHistory(game, 'AwayMoneyline')
+    },
+    spreadHistory: {
+      home: mapLineHistory(game, 'HomeLine'),
+      away: mapLineHistory(game, 'AwayLine')
+    },
+    spreadOddsHistory: {
+      home: mapOddsHistory(game, 'HomeLineOdds'),
+      away: mapOddsHistory(game, 'AwayLineOdds')
+    },
+    totalHistory: mapLineHistory(game, 'TotalScore'),
+    totalOverOddsHistory: mapOddsHistory(game, 'TotalScoreOver'),
+    totalUnderOddsHistory: mapOddsHistory(game, 'TotalScoreUnder')
   };
 }
 
