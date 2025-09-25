@@ -47,8 +47,10 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 
-# Dependency directories
-jspm_packages/
+# Dependency directories# 
+*.json
+!package.json
+!data/*.json
 
 # Build outputs
 dist/
