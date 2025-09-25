@@ -11,6 +11,41 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Serve your HTML files from 'public' folder
 
+// In-memory cache for games data
+const CACHE_DURATION = Number.parseInt(process.env.CACHE_DURATION || '', 10) || 5 * 60 * 1000; // 5 minutes default
+const CACHE_TTL_SECONDS = Math.max(60, Math.floor(CACHE_DURATION / 1000));
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  null;
+const supabaseTable = process.env.SUPABASE_TABLE || process.env.SUPABASE_GAMES_TABLE || 'games';
+const SUPABASE_SPORT_COLUMN = (process.env.SUPABASE_SPORT_COLUMN || 'sport').trim();
+const SUPABASE_MAX_ROWS = Math.max(1, Number.parseInt(process.env.SUPABASE_MAX_ROWS || '', 10) || 2000);
+const SUPABASE_ORDER_COLUMN = (process.env.SUPABASE_ORDER_COLUMN || 'start_date').trim();
+const SUPABASE_ORDER_ASC = /^true$/i.test(String(process.env.SUPABASE_ORDER_ASC || ''));
+
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || null;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+const hasUpstash = Boolean(upstashUrl && upstashToken);
+const upstashPipelineUrl = hasUpstash
+  ? upstashUrl.replace(/\/+$/, '').concat(upstashUrl.endsWith('/pipeline') ? '' : '/pipeline')
+  : null;
+
+const hasSupabase = Boolean(supabaseUrl && supabaseKey);
+const supabaseClient = hasSupabase
+  ? createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+  : null;
+
+if (!hasSupabase) {
+  console.warn('⚠️  Supabase environment variables not configured. Falling back to local files when needed.');
+}
+
+if (!hasUpstash) {
+  console.warn('⚠️  Upstash Redis environment variables not configured. Using in-memory caching only.');
+}
 // Cache configuration (shared Redis via Upstash + local fallback)
 const CACHE_DURATION_SECONDS = 5 * 60; // 5 minutes
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
@@ -114,6 +149,58 @@ const gameCaches = Object.fromEntries(
   Object.keys(SPORT_CONFIG).map(sport => [sport, { data: null, timestamp: null }])
 );
 
+async function executeUpstashCommand(command, ...args) {
+  if (!hasUpstash || !upstashPipelineUrl) return null;
+
+  try {
+    const response = await fetch(upstashPipelineUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${upstashToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify([[command, ...args]])
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Upstash request failed (${response.status}): ${text}`);
+    }
+
+    const payload = await response.json();
+    const [result] = Array.isArray(payload) ? payload : [];
+
+    if (!result) return null;
+    if (result.error) throw new Error(result.error);
+
+    return Object.prototype.hasOwnProperty.call(result, 'result') ? result.result : null;
+  } catch (error) {
+    console.error('⚠️  Upstash command failed:', error.message);
+    return null;
+  }
+}
+
+async function readSharedCache(cacheKey) {
+  if (!hasUpstash) return null;
+
+  const serialized = await executeUpstashCommand('GET', cacheKey);
+  if (typeof serialized !== 'string') return null;
+
+  try {
+    return JSON.parse(serialized);
+  } catch (error) {
+    console.error(`⚠️  Failed to parse cached payload for ${cacheKey}:`, error.message);
+    return null;
+  }
+}
+
+async function writeSharedCache(cacheKey, value) {
+  if (!hasUpstash) return;
+
+  try {
+    await executeUpstashCommand('SET', cacheKey, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
+  } catch (error) {
+    console.error(`⚠️  Unable to persist cache for ${cacheKey}:`, error.message);
 async function getCachedGames(sport) {
   const cacheKey = `games:${sport}`;
 
@@ -178,10 +265,46 @@ const NFL_DIVISIONS = {
   'Washington Commanders': 'NFC East'
 };
 
-// Load games from JSON
+// Load games from Supabase, shared cache, or JSON
 async function loadGamesForSport(requestedSport) {
   const sport = resolveSportKey(requestedSport);
   const config = SPORT_CONFIG[sport];
+
+  const { label } = config;
+  const cacheKey = `games:${sport}`;
+
+  const cached = await readSharedCache(cacheKey);
+  if (Array.isArray(cached) && cached.length) {
+    console.log(`💾 Loaded ${cached.length} ${label} games from shared cache`);
+    return cached;
+  }
+
+  let games = [];
+
+  if (hasSupabase) {
+    try {
+      games = await fetchSupabaseGames(sport);
+      if (games.length) {
+        console.log(`☁️  Loaded ${games.length} ${label} games from Supabase`);
+      }
+    } catch (error) {
+      console.error(`⚠️  Failed to load ${label} games from Supabase:`, error.message);
+    }
+  }
+
+  if (!Array.isArray(games) || games.length === 0) {
+    games = await loadLocalGames(config);
+  }
+
+  if (Array.isArray(games) && games.length) {
+    await writeSharedCache(cacheKey, games);
+  }
+
+  return games;
+}
+
+async function loadLocalGames(config) {
+  const { dataFile, mapper, demo, label } = config;
   const { dataFile, mapper, demo, label, supabaseTable } = config;
 
   const cachedGames = await getCachedGames(sport);
@@ -254,6 +377,36 @@ async function loadGamesFromSupabase(table, mapper, label) {
     console.error(`❌ Error loading ${label} games from Supabase:`, error.message);
     return null;
   }
+}
+
+async function fetchSupabaseGames(sport) {
+  if (!supabaseClient) return [];
+
+  const config = SPORT_CONFIG[sport];
+  if (!config) return [];
+
+  let query = supabaseClient.from(supabaseTable).select('*').limit(SUPABASE_MAX_ROWS);
+
+  if (SUPABASE_SPORT_COLUMN) {
+    query = query.eq(SUPABASE_SPORT_COLUMN, config.label);
+  }
+
+  if (SUPABASE_ORDER_COLUMN) {
+    query = query.order(SUPABASE_ORDER_COLUMN, {
+      ascending: SUPABASE_ORDER_ASC,
+      nullsFirst: false
+    });
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data)
+    ? data.map(record => mapSupabaseRow(record, sport)).filter(Boolean)
+    : [];
 }
 // Generate demo NCAAF data if JSON not available
 function generateNCAAFDemoData() {
@@ -404,6 +557,212 @@ function toNumber(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function normalizeDateValue(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+
+  const date = new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toISOString();
+  }
+
+  return typeof value === 'string' ? value : null;
+}
+
+function resolveOptionalBoolean(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'boolean') return value;
+  return toBoolean(value);
+}
+
+function pickRowValue(row, ...keys) {
+  if (!row || typeof row !== 'object') return null;
+  for (const key of keys) {
+    if (!key) continue;
+    if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) {
+      return row[key];
+    }
+  }
+  return null;
+}
+
+function pickNumericRowValue(row, ...keys) {
+  return toNumber(pickRowValue(row, ...keys));
+}
+
+function pickBooleanRowValue(row, ...keys) {
+  return resolveOptionalBoolean(pickRowValue(row, ...keys));
+}
+
+function buildHistory(row, { snake, pascal, camel }) {
+  return {
+    open: pickNumericRowValue(row, `${snake}_open`, `${pascal}Open`, `${camel}Open`),
+    min: pickNumericRowValue(row, `${snake}_min`, `${pascal}Min`, `${camel}Min`),
+    max: pickNumericRowValue(row, `${snake}_max`, `${pascal}Max`, `${camel}Max`),
+    close: pickNumericRowValue(row, `${snake}_close`, `${pascal}Close`, `${camel}Close`, snake, pascal, camel)
+  };
+}
+
+function historyHasValues(history) {
+  if (!history) return false;
+  return Object.values(history).some(value => value !== null && value !== undefined);
+}
+
+function assignIfPresent(target, key, value) {
+  if (value !== null && value !== undefined) {
+    target[key] = value;
+  }
+}
+
+function mapSupabaseRow(row = {}, sportKey) {
+  if (!row || typeof row !== 'object') return null;
+
+  const payload = {
+    id: pickRowValue(row, 'id', 'game_id', 'uuid'),
+    sport: sportKey,
+    season: pickNumericRowValue(row, 'season', 'Season'),
+    week: pickNumericRowValue(row, 'week', 'Week'),
+    startDate: normalizeDateValue(pickRowValue(row, 'start_date', 'startDate', 'game_date', 'kickoff_at')), 
+    homeTeam: pickRowValue(row, 'home_team', 'HomeTeam', 'homeTeam'),
+    awayTeam: pickRowValue(row, 'away_team', 'AwayTeam', 'awayTeam'),
+    homeConference: pickRowValue(row, 'home_conference', 'HomeConference', 'homeConference'),
+    awayConference: pickRowValue(row, 'away_conference', 'AwayConference', 'awayConference'),
+    homeScore: pickNumericRowValue(row, 'home_score', 'HomeScore', 'homeScore', 'home_points'),
+    awayScore: pickNumericRowValue(row, 'away_score', 'AwayScore', 'awayScore', 'away_points'),
+    spread: pickNumericRowValue(row, 'spread', 'closing_spread', 'line'),
+    overUnder: pickNumericRowValue(row, 'over_under', 'total', 'closing_total'),
+    openingSpread: pickNumericRowValue(row, 'opening_spread', 'OpeningSpread', 'openingSpread'),
+    openingOverUnder: pickNumericRowValue(row, 'opening_over_under', 'OpeningOverUnder', 'openingOverUnder', 'opening_total'),
+    homeMoneyline: pickNumericRowValue(row, 'home_moneyline', 'HomeMoneyline', 'homeMoneyline'),
+    awayMoneyline: pickNumericRowValue(row, 'away_moneyline', 'AwayMoneyline', 'awayMoneyline'),
+    seasonType: pickRowValue(row, 'season_type', 'SeasonType', 'seasonType'),
+    completed: pickBooleanRowValue(row, 'completed', 'Completed', 'is_completed'),
+    lineProvider: pickRowValue(row, 'line_provider', 'lineProvider', 'sportsbook'),
+    neutralVenue: pickBooleanRowValue(row, 'neutral_venue', 'neutralVenue', 'neutral_site'),
+    playoffGame: pickBooleanRowValue(row, 'playoff_game', 'playoffGame', 'is_playoff'),
+    notes: pickRowValue(row, 'notes', 'Notes'),
+    lineMovement: pickNumericRowValue(row, 'line_movement', 'lineMovement'),
+    totalMovement: pickNumericRowValue(row, 'total_movement', 'totalMovement'),
+    homeProbShift: pickNumericRowValue(row, 'home_prob_shift', 'homeProbShift'),
+    awayProbShift: pickNumericRowValue(row, 'away_prob_shift', 'awayProbShift'),
+    isSteamMove: pickBooleanRowValue(row, 'is_steam_move', 'isSteamMove'),
+    isReverseMove: pickBooleanRowValue(row, 'is_reverse_move', 'isReverseMove'),
+    hasArbitrage: pickBooleanRowValue(row, 'has_arbitrage', 'hasArbitrage'),
+    volatilityScore: pickNumericRowValue(row, 'volatility_score', 'volatilityScore')
+  };
+
+  const homeMoneylineHistory = buildHistory(row, {
+    snake: 'home_moneyline',
+    pascal: 'HomeMoneyline',
+    camel: 'homeMoneyline'
+  });
+  const awayMoneylineHistory = buildHistory(row, {
+    snake: 'away_moneyline',
+    pascal: 'AwayMoneyline',
+    camel: 'awayMoneyline'
+  });
+  const homeLineHistory = buildHistory(row, {
+    snake: 'home_line',
+    pascal: 'HomeLine',
+    camel: 'homeLine'
+  });
+  const awayLineHistory = buildHistory(row, {
+    snake: 'away_line',
+    pascal: 'AwayLine',
+    camel: 'awayLine'
+  });
+  const totalScoreHistory = buildHistory(row, {
+    snake: 'total_score',
+    pascal: 'TotalScore',
+    camel: 'totalScore'
+  });
+  const totalScoreOverHistory = buildHistory(row, {
+    snake: 'total_over',
+    pascal: 'TotalScoreOver',
+    camel: 'totalScoreOver'
+  });
+  const totalScoreUnderHistory = buildHistory(row, {
+    snake: 'total_under',
+    pascal: 'TotalScoreUnder',
+    camel: 'totalScoreUnder'
+  });
+  const homeLineOddsHistory = buildHistory(row, {
+    snake: 'home_line_odds',
+    pascal: 'HomeLineOdds',
+    camel: 'homeLineOdds'
+  });
+  const awayLineOddsHistory = buildHistory(row, {
+    snake: 'away_line_odds',
+    pascal: 'AwayLineOdds',
+    camel: 'awayLineOdds'
+  });
+
+  assignIfPresent(payload, 'homeMoneylineOpen', homeMoneylineHistory.open);
+  assignIfPresent(payload, 'homeMoneylineMin', homeMoneylineHistory.min);
+  assignIfPresent(payload, 'homeMoneylineMax', homeMoneylineHistory.max);
+  assignIfPresent(payload, 'awayMoneylineOpen', awayMoneylineHistory.open);
+  assignIfPresent(payload, 'awayMoneylineMin', awayMoneylineHistory.min);
+  assignIfPresent(payload, 'awayMoneylineMax', awayMoneylineHistory.max);
+  assignIfPresent(payload, 'homeLineMin', homeLineHistory.min);
+  assignIfPresent(payload, 'homeLineMax', homeLineHistory.max);
+  assignIfPresent(payload, 'totalScoreMin', totalScoreHistory.min);
+  assignIfPresent(payload, 'totalScoreMax', totalScoreHistory.max);
+  assignIfPresent(payload, 'totalScoreOverOpen', totalScoreOverHistory.open);
+  assignIfPresent(payload, 'totalScoreOverClose', totalScoreOverHistory.close);
+  assignIfPresent(payload, 'totalScoreUnderOpen', totalScoreUnderHistory.open);
+  assignIfPresent(payload, 'totalScoreUnderClose', totalScoreUnderHistory.close);
+  assignIfPresent(payload, 'homeLineOddsOpen', homeLineOddsHistory.open);
+  assignIfPresent(payload, 'homeLineOddsClose', homeLineOddsHistory.close);
+  assignIfPresent(payload, 'awayLineOddsOpen', awayLineOddsHistory.open);
+  assignIfPresent(payload, 'awayLineOddsClose', awayLineOddsHistory.close);
+
+  if (historyHasValues(homeMoneylineHistory) || historyHasValues(awayMoneylineHistory)) {
+    payload.moneylineHistory = {};
+    if (historyHasValues(homeMoneylineHistory)) {
+      payload.moneylineHistory.home = homeMoneylineHistory;
+    }
+    if (historyHasValues(awayMoneylineHistory)) {
+      payload.moneylineHistory.away = awayMoneylineHistory;
+    }
+  }
+
+  if (historyHasValues(homeLineHistory) || historyHasValues(awayLineHistory)) {
+    payload.spreadHistory = {};
+    if (historyHasValues(homeLineHistory)) {
+      payload.spreadHistory.home = homeLineHistory;
+    }
+    if (historyHasValues(awayLineHistory)) {
+      payload.spreadHistory.away = awayLineHistory;
+    }
+  }
+
+  if (historyHasValues(homeLineOddsHistory) || historyHasValues(awayLineOddsHistory)) {
+    payload.spreadOddsHistory = {};
+    if (historyHasValues(homeLineOddsHistory)) {
+      payload.spreadOddsHistory.home = homeLineOddsHistory;
+    }
+    if (historyHasValues(awayLineOddsHistory)) {
+      payload.spreadOddsHistory.away = awayLineOddsHistory;
+    }
+  }
+
+  if (historyHasValues(totalScoreHistory)) {
+    payload.totalHistory = totalScoreHistory;
+  }
+
+  if (historyHasValues(totalScoreOverHistory)) {
+    payload.totalOverOddsHistory = totalScoreOverHistory;
+  }
+
+  if (historyHasValues(totalScoreUnderHistory)) {
+    payload.totalUnderOddsHistory = totalScoreUnderHistory;
+  }
+
+  return payload;
+}
+
 function resolveSportKey(value) {
   const key = String(value || '').toLowerCase();
   return SPORT_CONFIG[key] ? key : DEFAULT_SPORT;
@@ -535,6 +894,16 @@ async function getGamesData(requestedSport) {
   const sport = resolveSportKey(requestedSport);
 
   try {
+
+    const games = await loadGamesForSport(sport);
+
+    if (!Array.isArray(games)) {
+      throw new Error('Games payload was not an array');
+    }
+
+    cache.data = games;
+    cache.timestamp = Date.now();
+    return games;
     return await loadGamesForSport(sport);
   } catch (error) {
     console.error(`Error loading ${sport} games data:`, error);
