@@ -51,6 +51,7 @@
     .games-count { font-size:0.9em; color:#555 }
     .table-container { margin-top:12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); overflow:hidden; box-shadow:0 6px 12px rgba(0,0,0,.08); background:#fff }
     .muted { color:#5a5a5a; font-size:0.8em; }
+    .hidden { display:none !important; }
     .signal-chip { display:inline-block; background:rgba(255,107,53,.15); color:#ff6b35; padding:2px 8px; border-radius:999px; font-size:0.75em; font-weight:600; margin:2px 4px 2px 0; letter-spacing:0.05em; text-transform:uppercase; }
     #nflTable th, #nflTable td { padding:12px 10px; vertical-align:top; }
     #nflTable td { line-height:1.45; }
@@ -465,11 +466,13 @@
                 <th>Conferences</th>
                 <th style="text-align:right">Spread</th>
                 <th style="text-align:right">Total</th>
+                <th style="text-align:right">Score</th>
+                <th>Result</th>
                 <th>Book</th>
               </tr>
             </thead>
             <tbody id="historical-tbody">
-              <tr class="empty-row"><td colspan="7">Loading historical games…</td></tr>
+              <tr class="empty-row"><td colspan="9">Loading historical games…</td></tr>
             </tbody>
           </table>
         </div>
@@ -634,6 +637,24 @@ function updateSportUI() {
     button.classList.toggle('active', isActive);
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
+
+  const nflTabButton = document.querySelector('button.tab[onclick="showTab(\'nflAdvanced\')"]');
+  const nflTabContent = document.getElementById('nflAdvanced');
+  const isNfl = CURRENT_SPORT === 'nfl';
+  if (nflTabButton) {
+    nflTabButton.style.display = isNfl ? '' : 'none';
+    if (!isNfl) nflTabButton.classList.remove('active');
+  }
+  if (nflTabContent) {
+    nflTabContent.classList.toggle('hidden', !isNfl);
+    if (!isNfl) nflTabContent.classList.remove('active');
+  }
+  if (!isNfl) {
+    const activeContent = document.querySelector('.tab-content.active');
+    if (activeContent && activeContent.id === 'nflAdvanced') {
+      showTab('overview');
+    }
+  }
 }
 
 function setSport(sport) {
@@ -840,15 +861,20 @@ function renderTable(filteredRows, config = {}) {
     countId = 'gamesCount',
     emptyMessage = 'No games match the current filters.',
     noDataMessage = 'No games match the current filters.',
-    overallCount = null
+    overallCount = null,
+    showResults = false,
+    columnCount: customColumnCount
   } = config;
 
   const tbody = document.getElementById(tbodyId);
   if (!tbody) return;
 
   const rows = Array.isArray(filteredRows) ? filteredRows : filterGamesForScope('overview');
+  const columnCount = Number.isInteger(customColumnCount)
+    ? customColumnCount
+    : (showResults ? 9 : 7);
   if (!rows.length) {
-    tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${emptyMessage}</td></tr>`;
+    tbody.innerHTML = `<tr class="empty-row"><td colspan="${columnCount}">${emptyMessage}</td></tr>`;
     if (countId) {
       const countEl = document.getElementById(countId);
       if (countEl) countEl.textContent = noDataMessage;
@@ -875,6 +901,21 @@ function renderTable(filteredRows, config = {}) {
     const away = g.awayTeam || '—';
     const home = g.homeTeam || '—';
     const book = g.lineProvider || '—';
+    const awayScore = toNumber(g.awayScore);
+    const homeScore = toNumber(g.homeScore);
+    const scoreText = (showResults && awayScore !== null && homeScore !== null)
+      ? `${awayScore}-${homeScore}`
+      : '—';
+    let resultText = showResults ? (g.completed === false ? 'Pending' : '—') : '';
+    if (showResults && awayScore !== null && homeScore !== null) {
+      if (awayScore === homeScore) {
+        resultText = 'Tied';
+      } else {
+        const winner = awayScore > homeScore ? (g.awayTeam || 'Away') : (g.homeTeam || 'Home');
+        const margin = Math.abs(awayScore - homeScore);
+        resultText = `${winner} by ${margin}`;
+      }
+    }
     return `
       <tr style="border-top:1px solid #eee">
         <td style="padding:8px">${date}</td>
@@ -883,6 +924,8 @@ function renderTable(filteredRows, config = {}) {
         <td style="padding:8px">${conf}</td>
         <td style="padding:8px; text-align:right">${spread === '—' ? '' : spread}</td>
         <td style="padding:8px; text-align:right">${total === '—' ? '' : total}</td>
+        ${showResults ? `<td style="padding:8px; text-align:right">${scoreText}</td>` : ''}
+        ${showResults ? `<td style="padding:8px">${resultText}</td>` : ''}
         <td style="padding:8px">${book}</td>
       </tr>
     `;
@@ -1841,7 +1884,9 @@ function renderHistoricalTab() {
     countId: 'historicalGamesCount',
     emptyMessage: overallCount ? 'No historical games match the current filters.' : 'No historical data available.',
     noDataMessage: overallCount ? 'No historical games match the current filters.' : 'No historical data available.',
-    overallCount
+    overallCount,
+    showResults: true,
+    columnCount: 9
   });
 
   renderHistoricalCharts(filtered, historicalUniverse);
