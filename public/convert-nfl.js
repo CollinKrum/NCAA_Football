@@ -38,6 +38,25 @@ function parseRow(row) {
     }
     return null;
   };
+  const toNumber = value => {
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+  const decimalToAmerican = value => {
+    const num = toNumber(value);
+    if (!Number.isFinite(num) || num <= 1) return null;
+    if (num >= 2) {
+      return Math.round((num - 1) * 100);
+    }
+    return -Math.round(100 / (num - 1));
+  };
+  const pickLine = (...names) => toNumber(mapField(...names));
+  const pickOdds = (...names) => decimalToAmerican(mapField(...names));
+
+  const homeMoneylineClose = pickOdds('HomeMoneyline', 'homeMoneyline', 'Home Odds Close');
+  const awayMoneylineClose = pickOdds('AwayMoneyline', 'awayMoneyline', 'Away Odds Close');
+
   return {
     Id: mapField('Id', 'id', 'ID'),
     Season: mapField('Season', 'season', 'YEAR'),
@@ -47,18 +66,54 @@ function parseRow(row) {
     AwayTeam: mapField('AwayTeam', 'awayTeam', 'Away Team'),
     HomeConference: mapField('HomeConference', 'homeConference', 'HomeConf', 'Home Conference'),
     AwayConference: mapField('AwayConference', 'awayConference', 'AwayConf', 'Away Conference'),
-    HomeScore: mapField('HomeScore', 'homeScore', 'HomeScoreFinal'),
-    AwayScore: mapField('AwayScore', 'awayScore', 'AwayScoreFinal'),
-    Spread: mapField('Spread', 'spread', 'Line'),
-    OverUnder: mapField('OverUnder', 'overUnder', 'Total'),
-    OpeningSpread: mapField('OpeningSpread', 'openingSpread', 'OpenLine'),
-    OpeningOverUnder: mapField('OpeningOverUnder', 'openingOverUnder', 'OpenTotal'),
-    HomeMoneyline: mapField('HomeMoneyline', 'homeMoneyline', 'HomeML'),
-    AwayMoneyline: mapField('AwayMoneyline', 'awayMoneyline', 'AwayML'),
+    HomeScore: pickLine('HomeScore', 'homeScore', 'Home Score'),
+    AwayScore: pickLine('AwayScore', 'awayScore', 'Away Score'),
+    Spread: pickLine('Spread', 'spread', 'Line', 'Home Line Close'),
+    OverUnder: pickLine('OverUnder', 'overUnder', 'Total', 'Total Score Close'),
+    OpeningSpread: pickLine('OpeningSpread', 'openingSpread', 'OpenLine', 'Home Line Open'),
+    OpeningOverUnder: pickLine('OpeningOverUnder', 'openingOverUnder', 'OpenTotal', 'Total Score Open'),
+    HomeMoneyline: homeMoneylineClose,
+    AwayMoneyline: awayMoneylineClose,
     NeutralVenue: mapField('NeutralVenue', 'neutralVenue', 'Neutral'),
     PlayoffGame: mapField('PlayoffGame', 'playoffGame', 'Playoff'),
     Notes: mapField('Notes', 'notes', 'Comment'),
-    LineProvider: mapField('LineProvider', 'lineProvider', 'Book', 'Sportsbook')
+    LineProvider: mapField('LineProvider', 'lineProvider', 'Book', 'Sportsbook'),
+    HomeMoneylineOpen: pickOdds('HomeMoneylineOpen', 'homeMoneylineOpen', 'Home Odds Open'),
+    HomeMoneylineMin: pickOdds('HomeMoneylineMin', 'homeMoneylineMin', 'Home Odds Min'),
+    HomeMoneylineMax: pickOdds('HomeMoneylineMax', 'homeMoneylineMax', 'Home Odds Max'),
+    HomeMoneylineClose: homeMoneylineClose,
+    AwayMoneylineOpen: pickOdds('AwayMoneylineOpen', 'awayMoneylineOpen', 'Away Odds Open'),
+    AwayMoneylineMin: pickOdds('AwayMoneylineMin', 'awayMoneylineMin', 'Away Odds Min'),
+    AwayMoneylineMax: pickOdds('AwayMoneylineMax', 'awayMoneylineMax', 'Away Odds Max'),
+    AwayMoneylineClose: awayMoneylineClose,
+    HomeLineOpen: pickLine('HomeLineOpen', 'homeLineOpen', 'Home Line Open'),
+    HomeLineMin: pickLine('HomeLineMin', 'homeLineMin', 'Home Line Min'),
+    HomeLineMax: pickLine('HomeLineMax', 'homeLineMax', 'Home Line Max'),
+    HomeLineClose: pickLine('HomeLineClose', 'homeLineClose', 'Home Line Close'),
+    AwayLineOpen: pickLine('AwayLineOpen', 'awayLineOpen', 'Away Line Open'),
+    AwayLineMin: pickLine('AwayLineMin', 'awayLineMin', 'Away Line Min'),
+    AwayLineMax: pickLine('AwayLineMax', 'awayLineMax', 'Away Line Max'),
+    AwayLineClose: pickLine('AwayLineClose', 'awayLineClose', 'Away Line Close'),
+    HomeLineOddsOpen: pickOdds('HomeLineOddsOpen', 'homeLineOddsOpen', 'Home Line Odds Open'),
+    HomeLineOddsMin: pickOdds('HomeLineOddsMin', 'homeLineOddsMin', 'Home Line Odds Min'),
+    HomeLineOddsMax: pickOdds('HomeLineOddsMax', 'homeLineOddsMax', 'Home Line Odds Max'),
+    HomeLineOddsClose: pickOdds('HomeLineOddsClose', 'homeLineOddsClose', 'Home Line Odds Close'),
+    AwayLineOddsOpen: pickOdds('AwayLineOddsOpen', 'awayLineOddsOpen', 'Away Line Odds Open'),
+    AwayLineOddsMin: pickOdds('AwayLineOddsMin', 'awayLineOddsMin', 'Away Line Odds Min'),
+    AwayLineOddsMax: pickOdds('AwayLineOddsMax', 'awayLineOddsMax', 'Away Line Odds Max'),
+    AwayLineOddsClose: pickOdds('AwayLineOddsClose', 'awayLineOddsClose', 'Away Line Odds Close'),
+    TotalScoreOpen: pickLine('TotalScoreOpen', 'totalScoreOpen', 'Total Score Open'),
+    TotalScoreMin: pickLine('TotalScoreMin', 'totalScoreMin', 'Total Score Min'),
+    TotalScoreMax: pickLine('TotalScoreMax', 'totalScoreMax', 'Total Score Max'),
+    TotalScoreClose: pickLine('TotalScoreClose', 'totalScoreClose', 'Total Score Close'),
+    TotalScoreOverOpen: pickOdds('TotalScoreOverOpen', 'totalScoreOverOpen', 'Total Score Over Open'),
+    TotalScoreOverMin: pickOdds('TotalScoreOverMin', 'totalScoreOverMin', 'Total Score Over Min'),
+    TotalScoreOverMax: pickOdds('TotalScoreOverMax', 'totalScoreOverMax', 'Total Score Over Max'),
+    TotalScoreOverClose: pickOdds('TotalScoreOverClose', 'totalScoreOverClose', 'Total Score Over Close'),
+    TotalScoreUnderOpen: pickOdds('TotalScoreUnderOpen', 'totalScoreUnderOpen', 'Total Score Under Open'),
+    TotalScoreUnderMin: pickOdds('TotalScoreUnderMin', 'totalScoreUnderMin', 'Total Score Under Min'),
+    TotalScoreUnderMax: pickOdds('TotalScoreUnderMax', 'totalScoreUnderMax', 'Total Score Under Max'),
+    TotalScoreUnderClose: pickOdds('TotalScoreUnderClose', 'totalScoreUnderClose', 'Total Score Under Close')
   };
 }
 
