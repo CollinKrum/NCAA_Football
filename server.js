@@ -32,6 +32,13 @@ const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
 const hasUpstash = Boolean(upstashRestUrl && upstashToken);
 const upstashPipelineUrl = hasUpstash
   ? upstashRestUrl.replace(/\/+$/, '').concat(upstashRestUrl.endsWith('/pipeline') ? '' : '/pipeline')
+
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || null;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || null;
+const hasUpstash = Boolean(upstashUrl && upstashToken);
+const upstashPipelineUrl = hasUpstash
+  ? upstashUrl.replace(/\/+$/, '').concat(upstashUrl.endsWith('/pipeline') ? '' : '/pipeline')
+
   : null;
 
 const hasSupabase = Boolean(supabaseUrl && supabaseKey);
@@ -47,6 +54,87 @@ if (!hasUpstash) {
   console.warn('⚠️  Upstash Redis environment variables not configured. Using in-memory caching only.');
 }
 
+// Cache configuration (shared Redis via Upstash + local fallback)
+const CACHE_DURATION_SECONDS = 5 * 60; // 5 minutes
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+const hasUpstash = Boolean(upstashUrl && upstashToken);
+const hasSupabase = Boolean(supabaseUrl && supabaseKey);
+
+if (!hasUpstash) {
+  console.warn('⚠️  Upstash Redis environment variables not configured. Falling back to in-memory caching.');
+}
+
+let supabaseClient = null;
+
+if (hasSupabase) {
+  supabaseClient = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      persistSession: false
+    }
+  });
+} else {
+  console.warn('⚠️  Supabase environment variables not configured. Falling back to JSON/demo data.');
+}
+
+async function executeUpstashCommand(...args) {
+  if (!hasUpstash) return null;
+
+  const response = await fetch(upstashUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${upstashToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(args)
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Upstash request failed (${response.status}): ${body}`);
+  }
+
+  const result = await response.json();
+
+  if (result.error) {
+    throw new Error(`Upstash error: ${result.error}`);
+  }
+
+  return result.result;
+}
+
+async function readCache(key) {
+  try {
+    const result = await executeUpstashCommand('GET', key);
+    if (typeof result === 'string') {
+      return JSON.parse(result);
+    }
+    return null;
+  } catch (error) {
+    console.error(`⚠️  Unable to read cache for key ${key}:`, error.message);
+    return null;
+  }
+}
+
+async function writeCache(key, value) {
+  try {
+    await executeUpstashCommand('SET', key, JSON.stringify(value), 'EX', CACHE_DURATION_SECONDS);
+  } catch (error) {
+    console.error(`⚠️  Unable to write cache for key ${key}:`, error.message);
+  }
+}
+
+// In-memory cache for games data (fallback when Upstash is unavailable)
+const CACHE_DURATION = CACHE_DURATION_SECONDS * 1000;
+
+
 const DEFAULT_SPORT = 'ncaaf';
 
 const SPORT_CONFIG = {
@@ -54,13 +142,15 @@ const SPORT_CONFIG = {
     label: 'NCAAF',
     dataFile: path.join(__dirname, 'data/ncaaf-games.json'),
     mapper: mapNCAAFGame,
-    demo: generateNCAAFDemoData
+    demo: generateNCAAFDemoData,
+    supabaseTable: 'ncaaf_games'
   },
   nfl: {
     label: 'NFL',
     dataFile: path.join(__dirname, 'data/nfl-games.json'),
     mapper: mapNFLGame,
-    demo: generateNFLDemoData
+    demo: generateNFLDemoData,
+    supabaseTable: 'nfl_games'
   }
 };
 
@@ -120,6 +210,33 @@ async function writeSharedCache(cacheKey, value) {
     await executeUpstashCommand('SET', cacheKey, JSON.stringify(value), 'EX', CACHE_TTL_SECONDS);
   } catch (error) {
     console.error(`⚠️  Unable to persist cache for ${cacheKey}:`, error.message);
+
+async function getCachedGames(sport) {
+  const cacheKey = `games:${sport}`;
+
+  if (hasUpstash) {
+    const cached = await readCache(cacheKey);
+    if (Array.isArray(cached) && cached.length > 0) {
+      console.log(`📦 Serving ${SPORT_CONFIG[sport].label} games from Upstash cache`);
+      return cached;
+    }
+  }
+
+  const memoryCache = gameCaches[sport];
+  if (memoryCache.data && Date.now() - memoryCache.timestamp < CACHE_DURATION) {
+    console.log(`📦 Serving ${SPORT_CONFIG[sport].label} games from in-memory cache`);
+    return memoryCache.data;
+  }
+
+  return null;
+}
+
+async function setCachedGames(sport, games) {
+  const cacheKey = `games:${sport}`;
+  gameCaches[sport] = { data: games, timestamp: Date.now() };
+
+  if (hasUpstash) {
+    await writeCache(cacheKey, games)
   }
 }
 
@@ -162,6 +279,7 @@ const NFL_DIVISIONS = {
 async function loadGamesForSport(requestedSport) {
   const sport = resolveSportKey(requestedSport);
   const config = SPORT_CONFIG[sport];
+
   const { label } = config;
   const cacheKey = `games:${sport}`;
 
@@ -197,11 +315,27 @@ async function loadGamesForSport(requestedSport) {
 
 async function loadLocalGames(config) {
   const { dataFile, mapper, demo, label } = config;
+  const { dataFile, mapper, demo, label, supabaseTable } = config;
+
+  const cachedGames = await getCachedGames(sport);
+  if (cachedGames) {
+    return cachedGames;
+  }
+
+  if (supabaseClient && supabaseTable) {
+    const supabaseGames = await loadGamesFromSupabase(supabaseTable, mapper, label);
+    if (Array.isArray(supabaseGames) && supabaseGames.length > 0) {
+      await setCachedGames(sport, supabaseGames);
+      return supabaseGames;
+    }
+  }
 
   try {
     if (!fs.existsSync(dataFile)) {
       console.log(`[${label}] JSON file not found, using demo data...`);
-      return demo();
+      const demoGames = demo();
+      await setCachedGames(sport, demoGames);
+      return demoGames;
     }
 
     console.log(`📂 Reading ${label} JSON file...`);
@@ -211,13 +345,50 @@ async function loadLocalGames(config) {
 
     const games = rawGames.map(mapper).filter(Boolean);
     console.log(`✅ Loaded ${games.length} ${label} games from JSON file`);
+    await setCachedGames(sport, games);
     return games;
   } catch (error) {
     console.error(`❌ Error reading ${label} JSON:`, error.message);
     console.log(`🔄 Falling back to ${label} demo data`);
-    return demo();
+    const demoGames = demo();
+    await setCachedGames(sport, demoGames);
+    return demoGames;
   }
 }
+
+async function loadGamesFromSupabase(table, mapper, label) {
+  if (!supabaseClient) return null;
+
+  try {
+    console.log(`☁️  Fetching ${label} games from Supabase table "${table}"...`);
+    const { data, error } = await supabaseClient
+      .from(table)
+      .select('*');
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      console.warn(`⚠️  Supabase table "${table}" returned no rows.`);
+      return null;
+    }
+
+    const games = data.map(mapper).filter(Boolean);
+
+    if (games.length === 0) {
+      console.warn(`⚠️  Supabase data for table "${table}" did not produce any mapped games.`);
+      return null;
+    }
+
+    console.log(`✅ Loaded ${games.length} ${label} games from Supabase`);
+    return games;
+  } catch (error) {
+    console.error(`❌ Error loading ${label} games from Supabase:`, error.message);
+    return null;
+  }
+}
+
 
 async function fetchSupabaseGames(sport) {
   if (!supabaseClient) return [];
@@ -732,14 +903,9 @@ function toBoolean(value) {
 // Get cached games or load fresh data
 async function getGamesData(requestedSport) {
   const sport = resolveSportKey(requestedSport);
-  const cache = gameCaches[sport];
-  const now = Date.now();
-
-  if (cache.data && cache.timestamp && (now - cache.timestamp) < CACHE_DURATION) {
-    return cache.data;
-  }
 
   try {
+
     const games = await loadGamesForSport(sport);
 
     if (!Array.isArray(games)) {
@@ -749,8 +915,10 @@ async function getGamesData(requestedSport) {
     cache.data = games;
     cache.timestamp = Date.now();
     return games;
+    return await loadGamesForSport(sport);
   } catch (error) {
     console.error(`Error loading ${sport} games data:`, error);
+    const cache = gameCaches[sport];
     return cache.data || [];
   }
 }
