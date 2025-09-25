@@ -271,12 +271,50 @@ function normalizeNFLRows(rows) {
 
         const homeScore = toNumber(row['Home Score']);
         const awayScore = toNumber(row['Away Score']);
+        const homeLineOpen = toNumber(row['Home Line Open']);
+        const homeLineMin = toNumber(row['Home Line Min']);
+        const homeLineMax = toNumber(row['Home Line Max']);
         const homeLineClose = toNumber(row['Home Line Close']);
+
+        const awayLineOpen = toNumber(row['Away Line Open']);
+        const awayLineMin = toNumber(row['Away Line Min']);
+        const awayLineMax = toNumber(row['Away Line Max']);
+        const awayLineClose = toNumber(row['Away Line Close']);
+
+        const totalOpen = toNumber(row['Total Score Open']);
+        const totalMin = toNumber(row['Total Score Min']);
+        const totalMax = toNumber(row['Total Score Max']);
         const totalClose = toNumber(row['Total Score Close']);
-        const openingSpread = toNumber(row['Home Line Open']);
-        const openingTotal = toNumber(row['Total Score Open']);
-        const homeOddsClose = toNumber(row['Home Odds Close']);
-        const awayOddsClose = toNumber(row['Away Odds Close']);
+
+        const homeOddsOpen = decimalToAmerican(row['Home Odds Open']);
+        const homeOddsMin = decimalToAmerican(row['Home Odds Min']);
+        const homeOddsMax = decimalToAmerican(row['Home Odds Max']);
+        const homeOddsClose = decimalToAmerican(row['Home Odds Close']);
+
+        const awayOddsOpen = decimalToAmerican(row['Away Odds Open']);
+        const awayOddsMin = decimalToAmerican(row['Away Odds Min']);
+        const awayOddsMax = decimalToAmerican(row['Away Odds Max']);
+        const awayOddsClose = decimalToAmerican(row['Away Odds Close']);
+
+        const homeLineOddsOpen = decimalToAmerican(row['Home Line Odds Open']);
+        const homeLineOddsMin = decimalToAmerican(row['Home Line Odds Min']);
+        const homeLineOddsMax = decimalToAmerican(row['Home Line Odds Max']);
+        const homeLineOddsClose = decimalToAmerican(row['Home Line Odds Close']);
+
+        const awayLineOddsOpen = decimalToAmerican(row['Away Line Odds Open']);
+        const awayLineOddsMin = decimalToAmerican(row['Away Line Odds Min']);
+        const awayLineOddsMax = decimalToAmerican(row['Away Line Odds Max']);
+        const awayLineOddsClose = decimalToAmerican(row['Away Line Odds Close']);
+
+        const totalOverOpen = decimalToAmerican(row['Total Score Over Open']);
+        const totalOverMin = decimalToAmerican(row['Total Score Over Min']);
+        const totalOverMax = decimalToAmerican(row['Total Score Over Max']);
+        const totalOverClose = decimalToAmerican(row['Total Score Over Close']);
+
+        const totalUnderOpen = decimalToAmerican(row['Total Score Under Open']);
+        const totalUnderMin = decimalToAmerican(row['Total Score Under Min']);
+        const totalUnderMax = decimalToAmerican(row['Total Score Under Max']);
+        const totalUnderClose = decimalToAmerican(row['Total Score Under Close']);
 
         const id = row.Id
             || `${season}-${String(week || '').padStart(2, '0')}-${slugify(homeTeam)}-${slugify(awayTeam)}-${date.toISOString().slice(0, 10)}`;
@@ -297,16 +335,52 @@ function normalizeNFLRows(rows) {
             AwayScore: awayScore,
             Spread: homeLineClose,
             OverUnder: totalClose,
-            OpeningSpread: openingSpread,
-            OpeningOverUnder: openingTotal,
-            HomeMoneyline: decimalToAmerican(homeOddsClose),
-            AwayMoneyline: decimalToAmerican(awayOddsClose),
+            OpeningSpread: homeLineOpen,
+            OpeningOverUnder: totalOpen,
+            HomeMoneyline: homeOddsClose,
+            AwayMoneyline: awayOddsClose,
             SeasonType: toBoolean(row['Playoff Game?']) ? 'Postseason' : 'Regular',
             Completed: Number.isFinite(homeScore) && Number.isFinite(awayScore),
             LineProvider: 'Consensus',
             NeutralVenue: toBoolean(row['Neutral Venue?']) || null,
             PlayoffGame: toBoolean(row['Playoff Game?']) || null,
-            Notes: cleanString(row['Notes']) || null
+            Notes: cleanString(row['Notes']) || null,
+            HomeMoneylineOpen: homeOddsOpen,
+            HomeMoneylineMin: homeOddsMin,
+            HomeMoneylineMax: homeOddsMax,
+            HomeMoneylineClose: homeOddsClose,
+            AwayMoneylineOpen: awayOddsOpen,
+            AwayMoneylineMin: awayOddsMin,
+            AwayMoneylineMax: awayOddsMax,
+            AwayMoneylineClose: awayOddsClose,
+            HomeLineOpen: homeLineOpen,
+            HomeLineMin: homeLineMin,
+            HomeLineMax: homeLineMax,
+            HomeLineClose: homeLineClose,
+            AwayLineOpen: awayLineOpen,
+            AwayLineMin: awayLineMin,
+            AwayLineMax: awayLineMax,
+            AwayLineClose: awayLineClose,
+            HomeLineOddsOpen: homeLineOddsOpen,
+            HomeLineOddsMin: homeLineOddsMin,
+            HomeLineOddsMax: homeLineOddsMax,
+            HomeLineOddsClose: homeLineOddsClose,
+            AwayLineOddsOpen: awayLineOddsOpen,
+            AwayLineOddsMin: awayLineOddsMin,
+            AwayLineOddsMax: awayLineOddsMax,
+            AwayLineOddsClose: awayLineOddsClose,
+            TotalScoreOpen: totalOpen,
+            TotalScoreMin: totalMin,
+            TotalScoreMax: totalMax,
+            TotalScoreClose: totalClose,
+            TotalScoreOverOpen: totalOverOpen,
+            TotalScoreOverMin: totalOverMin,
+            TotalScoreOverMax: totalOverMax,
+            TotalScoreOverClose: totalOverClose,
+            TotalScoreUnderOpen: totalUnderOpen,
+            TotalScoreUnderMin: totalUnderMin,
+            TotalScoreUnderMax: totalUnderMax,
+            TotalScoreUnderClose: totalUnderClose
         };
     });
 }
