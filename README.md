@@ -134,7 +134,27 @@ The application expects game data with the following structure:
 PORT=3000                    # Server port
 NODE_ENV=development         # Environment mode
 CACHE_DURATION=300000        # Data cache duration (5 minutes)
+
+# Optional Supabase configuration (fetched before falling back to local files)
+SUPABASE_URL=...
+SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_TABLE=games
+SUPABASE_GAMES_TABLE=games
+SUPABASE_SPORT_COLUMN=sport
+SUPABASE_MAX_ROWS=2000
+SUPABASE_ORDER_COLUMN=start_date
+SUPABASE_ORDER_ASC=false
+
+# Optional Upstash Redis shared cache
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
 ```
+
+When Supabase credentials are provided the server first attempts to load the requested sport from
+the configured table and only falls back to JSON/demo data if no rows are returned. If Upstash Redis
+is configured the responses are cached with a shared TTL; otherwise the server reuses an in-memory
+cache identical to the original behaviour.
 
 ### Data File Locations
 - JSON data: `data/ncaaf-games.json`
