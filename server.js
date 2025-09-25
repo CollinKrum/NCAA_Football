@@ -417,42 +417,188 @@ function resolveOptionalBoolean(value) {
   return toBoolean(value);
 }
 
+function pickRowValue(row, ...keys) {
+  if (!row || typeof row !== 'object') return null;
+  for (const key of keys) {
+    if (!key) continue;
+    if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== undefined && row[key] !== null) {
+      return row[key];
+    }
+  }
+  return null;
+}
+
+function pickNumericRowValue(row, ...keys) {
+  return toNumber(pickRowValue(row, ...keys));
+}
+
+function pickBooleanRowValue(row, ...keys) {
+  return resolveOptionalBoolean(pickRowValue(row, ...keys));
+}
+
+function buildHistory(row, { snake, pascal, camel }) {
+  return {
+    open: pickNumericRowValue(row, `${snake}_open`, `${pascal}Open`, `${camel}Open`),
+    min: pickNumericRowValue(row, `${snake}_min`, `${pascal}Min`, `${camel}Min`),
+    max: pickNumericRowValue(row, `${snake}_max`, `${pascal}Max`, `${camel}Max`),
+    close: pickNumericRowValue(row, `${snake}_close`, `${pascal}Close`, `${camel}Close`, snake, pascal, camel)
+  };
+}
+
+function historyHasValues(history) {
+  if (!history) return false;
+  return Object.values(history).some(value => value !== null && value !== undefined);
+}
+
+function assignIfPresent(target, key, value) {
+  if (value !== null && value !== undefined) {
+    target[key] = value;
+  }
+}
+
 function mapSupabaseRow(row = {}, sportKey) {
   if (!row || typeof row !== 'object') return null;
 
   const payload = {
-    id: row.id ?? row.game_id ?? row.uuid ?? null,
+    id: pickRowValue(row, 'id', 'game_id', 'uuid'),
     sport: sportKey,
-    season: toNumber(row.season ?? row.Season),
-    week: toNumber(row.week ?? row.Week),
-    startDate: normalizeDateValue(row.start_date ?? row.startDate ?? row.game_date ?? row.kickoff_at),
-    homeTeam: row.home_team ?? row.HomeTeam ?? row.homeTeam ?? null,
-    awayTeam: row.away_team ?? row.AwayTeam ?? row.awayTeam ?? null,
-    homeConference: row.home_conference ?? row.HomeConference ?? row.homeConference ?? null,
-    awayConference: row.away_conference ?? row.AwayConference ?? row.awayConference ?? null,
-    homeScore: toNumber(row.home_score ?? row.HomeScore ?? row.homeScore ?? row.home_points),
-    awayScore: toNumber(row.away_score ?? row.AwayScore ?? row.awayScore ?? row.away_points),
-    spread: toNumber(row.spread ?? row.closing_spread ?? row.line),
-    overUnder: toNumber(row.over_under ?? row.total ?? row.closing_total),
-    openingSpread: toNumber(row.opening_spread ?? row.OpeningSpread ?? row.openingSpread),
-    openingOverUnder: toNumber(row.opening_over_under ?? row.OpeningOverUnder ?? row.openingOverUnder ?? row.opening_total),
-    homeMoneyline: toNumber(row.home_moneyline ?? row.HomeMoneyline ?? row.homeMoneyline),
-    awayMoneyline: toNumber(row.away_moneyline ?? row.AwayMoneyline ?? row.awayMoneyline),
-    seasonType: row.season_type ?? row.SeasonType ?? row.seasonType ?? null,
-    completed: resolveOptionalBoolean(row.completed ?? row.Completed ?? row.is_completed),
-    lineProvider: row.line_provider ?? row.lineProvider ?? row.sportsbook ?? null,
-    neutralVenue: resolveOptionalBoolean(row.neutral_venue ?? row.neutralVenue ?? row.neutral_site),
-    playoffGame: resolveOptionalBoolean(row.playoff_game ?? row.playoffGame ?? row.is_playoff),
-    notes: row.notes ?? null,
-    lineMovement: toNumber(row.line_movement ?? row.lineMovement),
-    totalMovement: toNumber(row.total_movement ?? row.totalMovement),
-    homeProbShift: toNumber(row.home_prob_shift ?? row.homeProbShift),
-    awayProbShift: toNumber(row.away_prob_shift ?? row.awayProbShift),
-    isSteamMove: resolveOptionalBoolean(row.is_steam_move ?? row.isSteamMove),
-    isReverseMove: resolveOptionalBoolean(row.is_reverse_move ?? row.isReverseMove),
-    hasArbitrage: resolveOptionalBoolean(row.has_arbitrage ?? row.hasArbitrage),
-    volatilityScore: toNumber(row.volatility_score ?? row.volatilityScore)
+    season: pickNumericRowValue(row, 'season', 'Season'),
+    week: pickNumericRowValue(row, 'week', 'Week'),
+    startDate: normalizeDateValue(pickRowValue(row, 'start_date', 'startDate', 'game_date', 'kickoff_at')), 
+    homeTeam: pickRowValue(row, 'home_team', 'HomeTeam', 'homeTeam'),
+    awayTeam: pickRowValue(row, 'away_team', 'AwayTeam', 'awayTeam'),
+    homeConference: pickRowValue(row, 'home_conference', 'HomeConference', 'homeConference'),
+    awayConference: pickRowValue(row, 'away_conference', 'AwayConference', 'awayConference'),
+    homeScore: pickNumericRowValue(row, 'home_score', 'HomeScore', 'homeScore', 'home_points'),
+    awayScore: pickNumericRowValue(row, 'away_score', 'AwayScore', 'awayScore', 'away_points'),
+    spread: pickNumericRowValue(row, 'spread', 'closing_spread', 'line'),
+    overUnder: pickNumericRowValue(row, 'over_under', 'total', 'closing_total'),
+    openingSpread: pickNumericRowValue(row, 'opening_spread', 'OpeningSpread', 'openingSpread'),
+    openingOverUnder: pickNumericRowValue(row, 'opening_over_under', 'OpeningOverUnder', 'openingOverUnder', 'opening_total'),
+    homeMoneyline: pickNumericRowValue(row, 'home_moneyline', 'HomeMoneyline', 'homeMoneyline'),
+    awayMoneyline: pickNumericRowValue(row, 'away_moneyline', 'AwayMoneyline', 'awayMoneyline'),
+    seasonType: pickRowValue(row, 'season_type', 'SeasonType', 'seasonType'),
+    completed: pickBooleanRowValue(row, 'completed', 'Completed', 'is_completed'),
+    lineProvider: pickRowValue(row, 'line_provider', 'lineProvider', 'sportsbook'),
+    neutralVenue: pickBooleanRowValue(row, 'neutral_venue', 'neutralVenue', 'neutral_site'),
+    playoffGame: pickBooleanRowValue(row, 'playoff_game', 'playoffGame', 'is_playoff'),
+    notes: pickRowValue(row, 'notes', 'Notes'),
+    lineMovement: pickNumericRowValue(row, 'line_movement', 'lineMovement'),
+    totalMovement: pickNumericRowValue(row, 'total_movement', 'totalMovement'),
+    homeProbShift: pickNumericRowValue(row, 'home_prob_shift', 'homeProbShift'),
+    awayProbShift: pickNumericRowValue(row, 'away_prob_shift', 'awayProbShift'),
+    isSteamMove: pickBooleanRowValue(row, 'is_steam_move', 'isSteamMove'),
+    isReverseMove: pickBooleanRowValue(row, 'is_reverse_move', 'isReverseMove'),
+    hasArbitrage: pickBooleanRowValue(row, 'has_arbitrage', 'hasArbitrage'),
+    volatilityScore: pickNumericRowValue(row, 'volatility_score', 'volatilityScore')
   };
+
+  const homeMoneylineHistory = buildHistory(row, {
+    snake: 'home_moneyline',
+    pascal: 'HomeMoneyline',
+    camel: 'homeMoneyline'
+  });
+  const awayMoneylineHistory = buildHistory(row, {
+    snake: 'away_moneyline',
+    pascal: 'AwayMoneyline',
+    camel: 'awayMoneyline'
+  });
+  const homeLineHistory = buildHistory(row, {
+    snake: 'home_line',
+    pascal: 'HomeLine',
+    camel: 'homeLine'
+  });
+  const awayLineHistory = buildHistory(row, {
+    snake: 'away_line',
+    pascal: 'AwayLine',
+    camel: 'awayLine'
+  });
+  const totalScoreHistory = buildHistory(row, {
+    snake: 'total_score',
+    pascal: 'TotalScore',
+    camel: 'totalScore'
+  });
+  const totalScoreOverHistory = buildHistory(row, {
+    snake: 'total_over',
+    pascal: 'TotalScoreOver',
+    camel: 'totalScoreOver'
+  });
+  const totalScoreUnderHistory = buildHistory(row, {
+    snake: 'total_under',
+    pascal: 'TotalScoreUnder',
+    camel: 'totalScoreUnder'
+  });
+  const homeLineOddsHistory = buildHistory(row, {
+    snake: 'home_line_odds',
+    pascal: 'HomeLineOdds',
+    camel: 'homeLineOdds'
+  });
+  const awayLineOddsHistory = buildHistory(row, {
+    snake: 'away_line_odds',
+    pascal: 'AwayLineOdds',
+    camel: 'awayLineOdds'
+  });
+
+  assignIfPresent(payload, 'homeMoneylineOpen', homeMoneylineHistory.open);
+  assignIfPresent(payload, 'homeMoneylineMin', homeMoneylineHistory.min);
+  assignIfPresent(payload, 'homeMoneylineMax', homeMoneylineHistory.max);
+  assignIfPresent(payload, 'awayMoneylineOpen', awayMoneylineHistory.open);
+  assignIfPresent(payload, 'awayMoneylineMin', awayMoneylineHistory.min);
+  assignIfPresent(payload, 'awayMoneylineMax', awayMoneylineHistory.max);
+  assignIfPresent(payload, 'homeLineMin', homeLineHistory.min);
+  assignIfPresent(payload, 'homeLineMax', homeLineHistory.max);
+  assignIfPresent(payload, 'totalScoreMin', totalScoreHistory.min);
+  assignIfPresent(payload, 'totalScoreMax', totalScoreHistory.max);
+  assignIfPresent(payload, 'totalScoreOverOpen', totalScoreOverHistory.open);
+  assignIfPresent(payload, 'totalScoreOverClose', totalScoreOverHistory.close);
+  assignIfPresent(payload, 'totalScoreUnderOpen', totalScoreUnderHistory.open);
+  assignIfPresent(payload, 'totalScoreUnderClose', totalScoreUnderHistory.close);
+  assignIfPresent(payload, 'homeLineOddsOpen', homeLineOddsHistory.open);
+  assignIfPresent(payload, 'homeLineOddsClose', homeLineOddsHistory.close);
+  assignIfPresent(payload, 'awayLineOddsOpen', awayLineOddsHistory.open);
+  assignIfPresent(payload, 'awayLineOddsClose', awayLineOddsHistory.close);
+
+  if (historyHasValues(homeMoneylineHistory) || historyHasValues(awayMoneylineHistory)) {
+    payload.moneylineHistory = {};
+    if (historyHasValues(homeMoneylineHistory)) {
+      payload.moneylineHistory.home = homeMoneylineHistory;
+    }
+    if (historyHasValues(awayMoneylineHistory)) {
+      payload.moneylineHistory.away = awayMoneylineHistory;
+    }
+  }
+
+  if (historyHasValues(homeLineHistory) || historyHasValues(awayLineHistory)) {
+    payload.spreadHistory = {};
+    if (historyHasValues(homeLineHistory)) {
+      payload.spreadHistory.home = homeLineHistory;
+    }
+    if (historyHasValues(awayLineHistory)) {
+      payload.spreadHistory.away = awayLineHistory;
+    }
+  }
+
+  if (historyHasValues(homeLineOddsHistory) || historyHasValues(awayLineOddsHistory)) {
+    payload.spreadOddsHistory = {};
+    if (historyHasValues(homeLineOddsHistory)) {
+      payload.spreadOddsHistory.home = homeLineOddsHistory;
+    }
+    if (historyHasValues(awayLineOddsHistory)) {
+      payload.spreadOddsHistory.away = awayLineOddsHistory;
+    }
+  }
+
+  if (historyHasValues(totalScoreHistory)) {
+    payload.totalHistory = totalScoreHistory;
+  }
+
+  if (historyHasValues(totalScoreOverHistory)) {
+    payload.totalOverOddsHistory = totalScoreOverHistory;
+  }
+
+  if (historyHasValues(totalScoreUnderHistory)) {
+    payload.totalUnderOddsHistory = totalScoreUnderHistory;
+  }
 
   return payload;
 }
