@@ -1,14 +1,3 @@
-/*
- * NFL analytics module for the betting dashboard
- *
- * Enriches raw NFL games with market movement metrics sourced from the
- * historical odds workbook (moneyline, spread, and total open/min/max/close).
- * It surfaces steam moves, reverse line movement, arbitrage margin, implied
- * probability shifts, and volatility scores, then renders the advanced NFL
- * table on the dashboard.
- */
-
-// Convert American moneyline odds to decimal odds
 function moneylineToDecimal(ml) {
   const odds = Number(ml);
   if (!Number.isFinite(odds)) return null;
@@ -214,8 +203,8 @@ function computeNFLMetrics(games) {
       awayMoneylineClose: awayMlClose,
       awayMoneylineMin: awayMlMin,
       awayMoneylineMax: awayMlMax,
-      homeProbabilityShift,
-      awayProbabilityShift,
+      homeProbabilityShift: homeProbShift,
+      awayProbabilityShift: awayProbShift,
       moneylineSteam: maxProbShift,
       spreadOddsOpen,
       spreadOddsClose,
