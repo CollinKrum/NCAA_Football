@@ -2094,58 +2094,88 @@ function renderEvCharts(games) {
   });
 }
 // Force load the data and bypass any normalization issues
-async function forceLoadData() {
-  try {
-    const response = await fetch('/api/games?sport=NCAAF&limit=10');
-    const data = await response.json();
-    console.log('Raw API response:', data);
-    
-    if (data.success && Array.isArray(data.data)) {
-      // Set ALL_GAMES directly with raw data
-      ALL_GAMES = data.data;
-      console.log('Forced ALL_GAMES:', ALL_GAMES.length, 'games');
-      
-      // Set a current season
-      CURRENT_SEASON = '2024';
-      
-      // Force re-render
-      renderOverviewTab();
-      
-      console.log('Data force-loaded successfully!');
-    } else {
-      console.error('API response format issue:', data);
-    }
-  } catch (error) {
-    console.error('Force load failed:', error);
-  }
-}
-
-// Run it
-forceLoadData();
+// Replace your existing loadSportData function with this fixed version
 async function loadSportData() {
   try {
+    console.log('🔍 Starting loadSportData for:', CURRENT_SPORT);
+    
+    const statsUrl = withSport('/api/stats');
+    const gamesUrl = withSport('/api/games');
+    
+    console.log('📡 Fetching URLs:', { statsUrl, gamesUrl });
+    
     const [statsResp, gamesResp] = await Promise.all([
-      getJson(withSport('/api/stats')),
-      getJson(withSport('/api/games'))
+      getJson(statsUrl),
+      getJson(gamesUrl)
     ]);
 
-    if (!statsResp.success) throw new Error('Stats endpoint returned success=false');
-    if (!gamesResp.success) throw new Error('Games endpoint returned success=false');
+    console.log('📊 Stats Response:', statsResp);
+    console.log('🏈 Games Response:', gamesResp);
+    console.log('🏈 Raw Games Count:', gamesResp?.data?.length || 0);
+
+    if (!statsResp.success) {
+      console.error('❌ Stats endpoint returned success=false:', statsResp);
+      throw new Error('Stats endpoint returned success=false');
+    }
+    if (!gamesResp.success) {
+      console.error('❌ Games endpoint returned success=false:', gamesResp);
+      throw new Error('Games endpoint returned success=false');
+    }
 
     const statsData = statsResp.data || {};
-   const games = Array.isArray(gamesResp.data) ? gamesResp.data.map(g => ({
-  ...g,
-  season: String(g.season || ''),
-  homeTeam: g.homeTeam || g.HomeTeam,
-  awayTeam: g.awayTeam || g.AwayTeam,
-  homeConference: g.homeConference || g.HomeConference,
-  awayConference: g.awayConference || g.AwayConference,
-  lineProvider: g.lineProvider || g.LineProvider
-})) : [];
+    const rawGames = Array.isArray(gamesResp.data) ? gamesResp.data : [];
+    
+    // SIMPLIFIED DATA ASSIGNMENT - no normalization for now
+    const games = rawGames; // Use raw games directly since they work
 
-    ALL_GAMES = games;
-    CURRENT_SEASON = determineCurrentSeason(statsData);
+    console.log('📈 Processed statsData:', statsData);
+    console.log('🎮 Using raw games array length:', games.length);
+    console.log('🎮 Sample game data:', games[0]);
 
+    ALL_GAMES = games; // Use raw games
+    CURRENT_SEASON = determineCurrentSeason(statsData) || '2024'; // Fallback to 2024
+
+    console.log('🏆 Set CURRENT_SEASON to:', CURRENT_SEASON);
+    console.log('🏆 ALL_GAMES length:', ALL_GAMES.length);
+
+    updateSportUI();
+    initializeFilters(statsData);
+
+    const totalGames = Number(statsData.totalGames ?? games.length ?? 0) || games.length;
+    const spreadCov = formatPct(statsData.spreadCoverage);
+    const totalsCov = formatPct(statsData.totalsCoverage);
+    const spreadDisplay = spreadCov === '—' ? '—' : `${spreadCov}%`;
+    const totalsDisplay = totalsCov === '—' ? '—' : `${totalsDisplay}%`;
+    const booksCount = Array.isArray(statsData.sportsbooks) ? statsData.sportsbooks.length : 1;
+
+    console.log('📊 Display stats:', { totalGames, spreadDisplay, totalsDisplay, booksCount });
+
+    const overviewStats = document.getElementById('overview-stats');
+    if (overviewStats) {
+      overviewStats.innerHTML = `
+        <div class="stat-card"><div class="stat-number">${totalGames.toLocaleString()}</div><div class="stat-label">Total Games</div></div>
+        <div class="stat-card"><div class="stat-number">${spreadDisplay}</div><div class="stat-label">Spread Coverage</div></div>
+        <div class="stat-card"><div class="stat-number">${totalsDisplay}</div><div class="stat-label">Totals Coverage</div></div>
+        <div class="stat-card"><div class="stat-number">${booksCount}</div><div class="stat-label">Books</div></div>
+      `;
+    }
+
+    console.log('🎨 About to render all tabs...');
+    renderAllTabs();
+    console.log('✅ loadSportData completed successfully');
+    
+  } catch (error) {
+    console.error(`❌ Failed to load ${CURRENT_SPORT} data:`, error);
+    console.error('❌ Error stack:', error.stack);
+    const overviewStats = document.getElementById('overview-stats');
+    if (overviewStats) {
+      overviewStats.innerHTML = `
+        <div class="stat-card"><div class="stat-number">❌</div><div class="stat-label">Error loading data</div></div>
+        <div class="stat-card"><div class="stat-number">—</div><div class="stat-label">Check console</div></div>
+      `;
+    }
+  }
+}
     updateSportUI();
     initializeFilters(statsData);
 
