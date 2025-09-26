@@ -2105,7 +2105,15 @@ async function loadSportData() {
     if (!gamesResp.success) throw new Error('Games endpoint returned success=false');
 
     const statsData = statsResp.data || {};
-    const games = Array.isArray(gamesResp.data) ? gamesResp.data : [];
+   const games = Array.isArray(gamesResp.data) ? gamesResp.data.map(g => ({
+  ...g,
+  season: String(g.season || ''),
+  homeTeam: g.homeTeam || g.HomeTeam,
+  awayTeam: g.awayTeam || g.AwayTeam,
+  homeConference: g.homeConference || g.HomeConference,
+  awayConference: g.awayConference || g.AwayConference,
+  lineProvider: g.lineProvider || g.LineProvider
+})) : [];
 
     ALL_GAMES = games;
     CURRENT_SEASON = determineCurrentSeason(statsData);
