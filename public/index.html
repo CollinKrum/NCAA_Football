@@ -2093,7 +2093,35 @@ function renderEvCharts(games) {
     }
   });
 }
+// Force load the data and bypass any normalization issues
+async function forceLoadData() {
+  try {
+    const response = await fetch('/api/games?sport=NCAAF&limit=10');
+    const data = await response.json();
+    console.log('Raw API response:', data);
+    
+    if (data.success && Array.isArray(data.data)) {
+      // Set ALL_GAMES directly with raw data
+      ALL_GAMES = data.data;
+      console.log('Forced ALL_GAMES:', ALL_GAMES.length, 'games');
+      
+      // Set a current season
+      CURRENT_SEASON = '2024';
+      
+      // Force re-render
+      renderOverviewTab();
+      
+      console.log('Data force-loaded successfully!');
+    } else {
+      console.error('API response format issue:', data);
+    }
+  } catch (error) {
+    console.error('Force load failed:', error);
+  }
+}
 
+// Run it
+forceLoadData();
 async function loadSportData() {
   try {
     const [statsResp, gamesResp] = await Promise.all([
